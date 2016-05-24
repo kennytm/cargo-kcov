@@ -1,0 +1,16 @@
+[package]
+name = "cargo-kcov"
+version = "0.1.0"
+authors = ["kennytm <kennytm@gmail.com>"]
+description = "Cargo subcommand to run kcov to get coverage report on Linux"
+repository = "https://github.com/kennytm/cargo-kcov"
+keywords = ["cargo", "subcommand", "kcov", "coverage"]
+license = "MIT"
+
+[dependencies]
+clap = "2.5.1"
+shlex = "0.1.1"
+
+[dev-dependencies]
+rquery = "0.2.1"
+
