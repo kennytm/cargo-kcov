@@ -1,0 +1,59 @@
+# Copied from https://github.com/kennytm/extprim/blob/master/.travis.yml :)
+
+language: rust
+sudo: false
+
+addons:
+    apt:
+        packages:
+            - libcurl4-openssl-dev
+            - libelf-dev
+            - libdw-dev
+            - binutils-dev
+            - gcc-multilib
+
+os:
+    - linux
+
+rust:
+    - 1.8.0
+    - beta
+    - nightly
+
+env:
+    matrix:
+        - ARCH=x86_64
+        - ARCH=i686
+
+matrix:
+    allow_failures:
+        - env: ARCH=i686
+        # FIXME: all i686 build panics with the message "Box<Any>", cause all `should_panic` tests to fail.
+
+install:
+    - |
+        wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+        tar xzf master.tar.gz &&
+        cd kcov-master &&
+        mkdir build &&
+        cd build &&
+        cmake .. &&
+        make install
+    - SYSROOT=$(rustc --print sysroot)
+    - export HOST=$ARCH-unknown-linux-gnu
+    - |
+        if [ ! -d "$SYSROOT/lib/rustlib/$HOST" ]; then
+            curl -SfLO "https://static.rust-lang.org/dist/rust-$TRAVIS_RUST_VERSION-$HOST.tar.gz" &&
+            tar xf "rust-$TRAVIS_RUST_VERSION-$HOST.tar.gz" "rust-$TRAVIS_RUST_VERSION-$HOST/rust-std-$HOST/lib/rustlib/$HOST" &&
+            mv "rust-$TRAVIS_RUST_VERSION-$HOST/rust-std-$HOST/lib/rustlib/$HOST" "$SYSROOT/lib/rustlib"
+        fi
+
+before_script:
+    - pip install 'travis-cargo<0.2' --user
+    - export PATH=$HOME/.local/bin:$HOME/Library/Python/2.7/bin:$PATH
+
+script:
+    - cargo test --target "$HOST"
+
+after_success:
+    - travis-cargo coveralls --no-sudo --verify -- --bin cargo-kcov
