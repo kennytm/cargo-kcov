@@ -25,20 +25,18 @@ env:
         - ARCH=x86_64
         - ARCH=i686
 
-matrix:
-    allow_failures:
-        - env: ARCH=i686
-        # FIXME: all i686 build panics with the message "Box<Any>", cause all `should_panic` tests to fail.
-
 install:
+    - mkdir -p ~/.cargo/bin
     - |
-        wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-        tar xzf master.tar.gz &&
-        cd kcov-master &&
+        wget https://github.com/SimonKagstrom/kcov/archive/v31.tar.gz &&
+        tar xzf v31.tar.gz &&
+        cd kcov-31 &&
         mkdir build &&
         cd build &&
         cmake .. &&
-        make install
+        make &&
+        cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin &&
+        cd ../..
     - SYSROOT=$(rustc --print sysroot)
     - export HOST=$ARCH-unknown-linux-gnu
     - |
@@ -50,10 +48,14 @@ install:
 
 before_script:
     - pip install 'travis-cargo<0.2' --user
-    - export PATH=$HOME/.local/bin:$HOME/Library/Python/2.7/bin:$PATH
+    - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
+    - kcov --version
 
 script:
     - cargo test --target "$HOST"
 
 after_success:
     - travis-cargo coveralls --no-sudo --verify -- --bin cargo-kcov
+#    - cargo clean
+#    - cargo run -- kcov --bin cargo-kcov --coveralls -- --verify
+

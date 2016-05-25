@@ -28,8 +28,8 @@ Prerequisite
 > **Important!** `kcov` only supports Linux at the moment. Track
 > [SimonKagstrom/kcov#135](https://github.com/SimonKagstrom/kcov/issues/135) for OS X support.
 
-You need to install `kcov` v25 or above. Some distro is still shipping v11, so you may need to
-build from source. Please follow the instruction in https://users.rust-lang.org/t/650.
+You need to install `kcov` v26 or above. Some distro is still shipping v25 or v11, so you will need
+to build from source. Please follow the instruction in https://users.rust-lang.org/t/650.
 
 Install
 -------

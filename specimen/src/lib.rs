@@ -1,6 +1,14 @@
 #[test]
 fn it_works() {
-    assert!(true);
+    for i in 0 .. 10 {
+        if i % 2 == 0 {
+            assert!(i % 4 != 1);
+        } else if i < 11 {
+            assert!(test_this_in_second());
+        } else {
+            assert!(false);
+        }
+    }
 }
 
 #[ignore]

@@ -10,6 +10,8 @@ license = "MIT"
 [dependencies]
 clap = "2.5.1"
 shlex = "0.1.1"
+term = "0.4.4"
+rustc-serialize = "0.3.19" # use serde instead? we just use it to parse a simple JSON...
 
 [dev-dependencies]
 rquery = "0.2.1"

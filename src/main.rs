@@ -19,26 +19,29 @@
 
 #[macro_use] extern crate clap;
 extern crate shlex;
+extern crate term;
+extern crate rustc_serialize;
+
+mod errors;
+mod cargo;
+mod target_finder;
 
 use std::process::Command;
 use std::fs::{remove_dir_all, create_dir_all};
-use std::default::Default;
 use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
 use std::env::var_os;
 
 use clap::{App, Arg, ArgMatches, AppSettings, SubCommand};
-use shlex::Shlex;
+
+use errors::Error;
+use cargo::{cargo, Cmd};
+use target_finder::parse_rustc_command_lines_into;
+use term::color::GREEN;
+use term::{stderr, Attr};
+use rustc_serialize::json::Json;
 
 fn main() {
-    fn filtering_arg<'a, 'b>(name: &'a str, help: &'b str) -> Arg<'a, 'b> {
-        Arg::with_name(&name[2..])
-            .long(name)
-            .value_name("NAME")
-            .number_of_values(1)
-            .multiple(true)
-            .help(help)
-    }
-
     let matches = App::new("cargo-kcov")
         .about("Generate coverage report via kcov")
         .version(crate_version!())
@@ -55,260 +58,191 @@ fn main() {
                 filtering_arg("--bench", "Test only the specified benchmark target"),
             ])
             .args_from_usage("
-                -j, --jobs=[N]         'The number of jobs to run in parallel'
+                -j, --jobs=[N]          'The number of jobs to run in parallel'
                 --release               'Build artifacts in release mode, with optimizations'
                 --features [FEATURES]   'Space-separated list of features to also build'
                 --no-default-features   'Do not build the `default` feature'
                 --target [TRIPLE]       'Build for the target triple'
                 --manifest-path [PATH]  'Path to the manifest to build tests for'
                 --no-fail-fast          'Run all tests regardless of failure'
+                --kcov [PATH]           'Path to the kcov executable'
+                -o, --output [PATH]     'Output directory, default to [target/cov]'
                 -v, --verbose           'Use verbose output'
+                --coveralls             'Upload merged coverage data to coveralls.io from Travis CI'
+                [KCOV-ARGS]...          'Further arguments passed to kcov'
             ")
         )
         .get_matches();
 
     let matches = matches.subcommand_matches("kcov").expect("Expecting subcommand `kcov`.");
+
+    match run(&matches) {
+        Ok(_) => {},
+        Err(e) => e.print_error_and_quit(),
+    }
+}
+
+fn filtering_arg<'a, 'b>(name: &'a str, help: &'b str) -> Arg<'a, 'b> {
+    Arg::with_name(&name[2..])
+        .long(name)
+        .value_name("NAME")
+        .number_of_values(1)
+        .multiple(true)
+        .help(help)
+}
+
+fn run(matches: &ArgMatches) -> Result<(), Error> {
+    if cfg!(any(target_os="windows", target_os="macos", target_os="ios")) {
+        return Err(Error::UnsupportedOS);
+    }
+
     let is_verbose = matches.is_present("verbose");
+    let kcov_path = try!(check_kcov(matches));
 
-    let pkgid = get_pkgid(&matches);
-    let trimmed_pkgid = pkgid.trim_right();
+    let coveralls_option = try!(get_coveralls_option(matches));
 
-    if is_verbose {
-        println!("Cleaning {}...", trimmed_pkgid);
-    }
-    clean(&matches, trimmed_pkgid);
+    let full_pkgid = try!(get_pkgid(matches));
+    let pkgid = full_pkgid.trim_right();
 
     if is_verbose {
-        println!("Rebuilding test executables...");
+        write_msg("Clean", pkgid);
     }
-    let tests = build_test(&matches);
+    try!(clean(matches, pkgid));
 
     if is_verbose {
-        println!("Found the following executables: {:?}", tests);
+        write_msg("Build", "test executables");
+    }
+    let tests = try!(build_test(matches));
+
+    if is_verbose {
+        write_msg("Coverage", &format!("found the following executables: {:?}", tests));
     }
 
-    let cov_path = get_cov_path(&pkgid);
-    let _ = remove_dir_all(&cov_path);
-    create_dir_all(&cov_path).unwrap();
+    let cov_path = try!(create_cov_path(matches));
+    let kcov_args = match matches.values_of_os("KCOV-ARGS") {
+        Some(a) => a.collect(),
+        None => Vec::new(),
+    };
 
+    let mut merge_cov_paths = Vec::with_capacity(tests.len());
     for test in tests {
-        let mut cmd = Command::new("kcov");
-        cmd.arg("--exclude-pattern=.cargo").arg(&cov_path).arg(&test);
-        append_env(&mut cmd, "LD_LIBRARY_PATH", ":", "target/debug/deps");
-        cmd.status().expect("kcov failed! Please visit [https://users.rust-lang.org/t/650] on how to install kcov.");
+        let mut pre_cov_path = cov_path.clone();
+        pre_cov_path.push(test.file_name().unwrap());
+        try!(Cmd::new(&kcov_path, "--exclude-pattern=/.cargo")
+            .env("LD_LIBRARY_PATH", ":", "target/debug/deps")
+            .args(&kcov_args)
+            .args(&[&pre_cov_path, &test])
+            .run_kcov());
+        merge_cov_paths.push(pre_cov_path);
     }
+
+    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&[cov_path]);
+    if let Some(opt) = coveralls_option {
+        merge_cmd = merge_cmd.args(&[opt]);
+    }
+    try!(merge_cmd.args(&merge_cov_paths).run_kcov());
+
+    Ok(())
 }
 
-fn get_pkgid(matches: &ArgMatches) -> String {
-    let mut command = Command::new("cargo");
-    command.arg("pkgid");
-    append_option(&mut command, matches, "--manifest-path");
-    let output = command.output().unwrap();
-    assert!(output.status.success(), "Failed to run `cargo pkgid`");
-    String::from_utf8(output.stdout).unwrap()
+fn write_msg(title: &str, msg: &str) {
+    let mut t = stderr().unwrap();
+    t.fg(GREEN).unwrap();
+    t.attr(Attr::Bold).unwrap();
+    write!(t, "{:>12}", title).unwrap();
+    t.reset().unwrap();
+    writeln!(t, " {}", msg).unwrap();
 }
 
-fn get_cov_path(pkgid: &str) -> PathBuf {
-    // Not sure if it is reliable. Maybe use `cargo locate-project` instead?
-    let last_sharp = pkgid.rfind("#").unwrap();
-    assert!(pkgid.starts_with("file://"));
-    let mut path = PathBuf::from(&pkgid[7..last_sharp]);
-    path.push("target");
-    path.push("cov");
-    path
-}
-
-fn clean(matches: &ArgMatches, pkg: &str) {
-    let mut command = Command::new("cargo");
-    command.args(&["clean", "--package", pkg]);
-    append_option(&mut command, matches, "--manifest-path");
-    append_option(&mut command, matches, "--target");
-    append_flag(&mut command, matches, "--release");
-    let status = command.status().unwrap();
-    assert!(status.success(), "Failed to run `cargo clean`");
-}
-
-fn build_test(matches: &ArgMatches) -> Vec<PathBuf> {
-    let mut command = Command::new("cargo");
-    command.args(&["test", "--no-run", "-v", "--color", "never"]);
-    append_env(&mut command, "RUSTFLAGS", " ", "-C link-dead-code");
-    append_flag(&mut command, matches, "--lib");
-    append_options_vec(&mut command, matches, "--bin");
-    append_options_vec(&mut command, matches, "--example");
-    append_options_vec(&mut command, matches, "--test");
-    append_options_vec(&mut command, matches, "--bench");
-    append_option(&mut command, matches, "--jobs");
-    append_option(&mut command, matches, "--features");
-    append_option(&mut command, matches, "--target");
-    append_option(&mut command, matches, "--manifest-path");
-    append_flag(&mut command, matches, "--release");
-    append_flag(&mut command, matches, "--no-default-features");
-    append_flag(&mut command, matches, "--no-fail-fast");
-    let output = command.output().unwrap();
-    assert!(output.status.success(), "Failed to run `cargo test`");
-
-    let errors = String::from_utf8(output.stderr).unwrap();
-    let output = String::from_utf8(output.stdout).unwrap();
-    let mut targets = Vec::new();
-    parse_rustc_command_lines_into(&mut targets, &errors);
-    parse_rustc_command_lines_into(&mut targets, &output);
-    targets
-}
-
-fn parse_rustc_command_lines_into(targets: &mut Vec<PathBuf>, output: &str) {
-    for line in output.lines() {
-        if let Some(target) = parse_rustc_command_line(line) {
-            targets.push(target);
-        }
-    }
-}
-
-fn parse_rustc_command_line(line: &str) -> Option<PathBuf> {
-    let trimmed_line = line.trim_left();
-    if !trimmed_line.starts_with("Running `rustc ") {
-        return None;
-    }
-
-    #[derive(Debug)]
-    enum NextState {
-        Normal,
-        CrateName,
-        C,
-        OutDir,
-    }
-
-    #[derive(Default, Debug)]
-    struct Info {
-        crate_name: Option<String>,
-        extra_filename: Option<String>,
-        out_dir: Option<String>,
-        is_test_confirmed: bool,
-    }
-
-    let mut next_state = NextState::Normal;
-    let mut info = Info::default();
-
-    for word in Shlex::new(trimmed_line) {
-        match next_state {
-            NextState::CrateName => {
-                if word != "build_script_build" {
-                    info.crate_name = Some(word);
-                    next_state = NextState::Normal;
-                } else {
-                    return None;
-                }
-            }
-            NextState::C => {
-                if word.starts_with("extra-filename=") {
-                    info.extra_filename = Some(word);
-                }
-                next_state = NextState::Normal;
-            }
-            NextState::OutDir => {
-                info.out_dir = Some(word);
-                next_state = NextState::Normal;
-            }
-            NextState::Normal => {
-                next_state = match &*word {
-                    "--crate-name" => NextState::CrateName,
-                    "--test" => { info.is_test_confirmed = true; NextState::Normal },
-                    "-C" => NextState::C,
-                    "--out-dir" => NextState::OutDir,
-                    _ => NextState::Normal,
-                };
-            }
-        }
-    }
-
-    if !info.is_test_confirmed {
-        return None;
-    }
-
-    let mut file_name = match info.crate_name {
-        Some(c) => c,
-        None => return None,
+fn check_kcov<'a>(matches: &'a ArgMatches<'a>) -> Result<&'a OsStr, Error> {
+    let program = matches.value_of_os("kcov").unwrap_or(OsStr::new("kcov"));
+    let output = match Command::new(program).arg("--version").output() {
+        Ok(o) => o,
+        Err(e) => return Err(Error::KcovNotInstalled(e)),
     };
-
-    if let Some(extra) = info.extra_filename {
-        file_name.push_str(&extra[15..]);
-    }
-
-    let mut path = match info.out_dir {
-        Some(o) => PathBuf::from(o),
-        None => PathBuf::new(),
-    };
-    path.push(file_name);
-
-    Some(path)
-}
-
-fn append_option(command: &mut Command, matches: &ArgMatches, option_name: &str) {
-    if let Some(opt) = matches.value_of_os(&option_name[2..]) {
-        command.arg(option_name).arg(opt);
+    if output.stdout.starts_with(b"kcov ") {
+        Ok(program)
+    } else {
+        Err(Error::KcovTooOld)
     }
 }
 
-fn append_options_vec(command: &mut Command, matches: &ArgMatches, option_name: &str) {
-    if let Some(opts) = matches.values_of_os(&option_name[2..]) {
-        for opt in opts {
-            command.arg(option_name).arg(opt);
+fn get_pkgid(matches: &ArgMatches) -> Result<String, Error> {
+    let (output, _) = try!(cargo("pkgid")
+        .forward(matches, &["--manifest-path"])
+        .output()
+    );
+    Ok(output)
+}
+
+fn get_coveralls_option(matches: &ArgMatches) -> Result<Option<OsString>, Error> {
+    if !matches.is_present("coveralls") {
+        Ok(None)
+    } else {
+        match var_os("TRAVIS_JOB_ID") {
+            None => Err(Error::NoCoverallsId),
+            Some(id) => {
+                let mut res = OsString::from("--coveralls-id=");
+                res.push(id);
+                Ok(Some(res))
+            }
         }
     }
 }
 
-fn append_flag(command: &mut Command, matches: &ArgMatches, flag_name: &str) {
-    if matches.is_present(&flag_name[2..]) {
-        command.arg(flag_name);
-    }
-}
-
-fn append_env(command: &mut Command, key: &str, sep: &str, val: &str) {
-    match var_os(key) {
+fn create_cov_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
+    let cov_path = match matches.value_of_os("output") {
+        Some(p) => PathBuf::from(p),
         None => {
-            command.env(key, val);
+            let (json, _) = try!(cargo("locate-project")
+                .forward(matches, &["--manifest-path"])
+                .output()
+            );
+            let json = try!(Json::from_str(&json));
+            match json.find("root").and_then(|j| j.as_string()) {
+                None => return Err(Error::Json(None)),
+                Some(p) => {
+                    let mut root = PathBuf::from(p);
+                    root.pop();
+                    root.push("target");
+                    root.push("cov");
+                    root
+                }
+            }
         }
-        Some(mut old_val) => {
-            old_val.push(sep);
-            old_val.push(val);
-            command.env(key, old_val);
-        }
+    };
+
+    let _ = remove_dir_all(&cov_path);
+    match create_dir_all(&cov_path) {
+        Ok(_) => Ok(cov_path),
+        Err(e) => Err(Error::CannotCreateCoverageDirectory(e)),
     }
 }
 
-#[test]
-fn test_parse_rustc_command_lines() {
-    use std::path::Path;
-
-    let msg = "
-   Compiling cargo-kcov-test v0.0.1 (file:///path/to/cargo-kcov/specimen)
-     Running `rustc build.rs --crate-name build_script_build --crate-type bin -g --out-dir /path/to/cargo-kcov/specimen/target/debug/build/cargo-kcov-test-e979e409632ceb65 --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps`
-     Running `/path/to/cargo-kcov/specimen/target/debug/build/cargo-kcov-test-e979e409632ceb65/build-script-build`
-     Running `rustc src/lib.rs --crate-name cargo_kcov_test --crate-type lib -g --test -C metadata=c04438234561d314 -C extra-filename=-c04438234561d314 --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps`
-     Running `rustc src/lib.rs --crate-name cargo_kcov_test --crate-type lib -g --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps`
-     Running `rustc src/bin/second.rs --crate-name second --crate-type bin -g --test -C metadata=73c22e2b503b192b -C extra-filename=-73c22e2b503b192b --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc src/bin/first.rs --crate-name first --crate-type bin -g --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc src/main.rs --crate-name cargo_kcov_test --crate-type bin -g --test -C metadata=29cdde257d8d338d -C extra-filename=-29cdde257d8d338d --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc src/bin/first.rs --crate-name first --crate-type bin -g --test -C metadata=89163cb400bf88f4 -C extra-filename=-89163cb400bf88f4 --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc src/bin/second.rs --crate-name second --crate-type bin -g --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc examples/third.rs --crate-name third --crate-type bin -g --out-dir /path/to/cargo-kcov/specimen/target/debug/examples --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc src/main.rs --crate-name cargo_kcov_test --crate-type bin -g --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc tests/fifth.rs --crate-name fifth --crate-type bin -g --test -C metadata=c8927870b9890f5c -C extra-filename=-c8927870b9890f5c --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc examples/fourth.rs --crate-name fourth --crate-type bin -g --out-dir /path/to/cargo-kcov/specimen/target/debug/examples --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-     Running `rustc tests/sixth.rs --crate-name sixth --crate-type bin -g --test -C metadata=9aacd1bdadcc9cef -C extra-filename=-9aacd1bdadcc9cef --out-dir /path/to/cargo-kcov/specimen/target/debug --emit=dep-info,link -L dependency=/path/to/cargo-kcov/specimen/target/debug -L dependency=/path/to/cargo-kcov/specimen/target/debug/deps --extern cargo_kcov_test=/path/to/cargo-kcov/specimen/target/debug/libcargo_kcov_test.rlib`
-    ";
-
-    let expected_paths = [
-        Path::new("/path/to/cargo-kcov/specimen/target/debug/cargo_kcov_test-c04438234561d314"),
-        Path::new("/path/to/cargo-kcov/specimen/target/debug/second-73c22e2b503b192b"),
-        Path::new("/path/to/cargo-kcov/specimen/target/debug/cargo_kcov_test-29cdde257d8d338d"),
-        Path::new("/path/to/cargo-kcov/specimen/target/debug/first-89163cb400bf88f4"),
-        Path::new("/path/to/cargo-kcov/specimen/target/debug/fifth-c8927870b9890f5c"),
-        Path::new("/path/to/cargo-kcov/specimen/target/debug/sixth-9aacd1bdadcc9cef"),
-    ];
-
-    let mut actual_paths = Vec::new();
-    parse_rustc_command_lines_into(&mut actual_paths, msg);
-
-    assert_eq!(actual_paths, expected_paths);
+fn clean(matches: &ArgMatches, pkg: &str) -> Result<(), Error> {
+    try!(cargo("clean")
+        .args(&["--package", pkg])
+        .forward(matches, &["--manifest-path", "--target", "--release"])
+        .output()
+    );
+    Ok(())
 }
+
+fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
+    let (output, error) = try!(cargo("test")
+        .args(&["--no-run", "-v"])
+        .env("RUSTFLAGS", " ", "-C link-dead-code")
+        .forward(matches, &[
+            "--lib", "--bin", "--example", "--test", "--bench",
+            "--jobs", "--release", "--target", "--manifest-path",
+            "--features", "--no-default-features", "--no-fail-fast",
+        ])
+        .output());
+
+    let mut targets = Vec::new();
+    parse_rustc_command_lines_into(&mut targets, &error);
+    parse_rustc_command_lines_into(&mut targets, &output);
+    Ok(targets)
+}
+
 
