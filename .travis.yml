@@ -37,6 +37,8 @@ install:
         make &&
         cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin &&
         cd ../..
+    - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
+    - kcov --version
     - SYSROOT=$(rustc --print sysroot)
     - export HOST=$ARCH-unknown-linux-gnu
     - |
@@ -46,16 +48,10 @@ install:
             mv "rust-$TRAVIS_RUST_VERSION-$HOST/rust-std-$HOST/lib/rustlib/$HOST" "$SYSROOT/lib/rustlib"
         fi
 
-before_script:
-    - pip install 'travis-cargo<0.2' --user
-    - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
-    - kcov --version
-
 script:
     - cargo test --target "$HOST"
 
 after_success:
-    - travis-cargo coveralls --no-sudo --verify -- --bin cargo-kcov
-#    - cargo clean
-#    - cargo run -- kcov --bin cargo-kcov --coveralls -- --verify
+    - cargo clean
+    - cargo run -- kcov --bin cargo-kcov --coveralls -- --verify
 
