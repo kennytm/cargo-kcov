@@ -1,5 +1,3 @@
-# Copied from https://github.com/kennytm/extprim/blob/master/.travis.yml :)
-
 language: rust
 sudo: false
 
@@ -26,6 +24,7 @@ env:
         - ARCH=i686
 
 install:
+    # 1. Install kcov v31.
     - mkdir -p ~/.cargo/bin
     - |
         wget https://github.com/SimonKagstrom/kcov/archive/v31.tar.gz &&
@@ -39,6 +38,8 @@ install:
         cd ../..
     - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
     - kcov --version
+
+    # 2. Install cross-compiling toolchain.
     - SYSROOT=$(rustc --print sysroot)
     - export HOST=$ARCH-unknown-linux-gnu
     - |
@@ -52,6 +53,8 @@ script:
     - cargo test --target "$HOST"
 
 after_success:
+    # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
+    # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
     - cargo clean
     - cargo run -- kcov --bin cargo-kcov --coveralls -- --verify
 

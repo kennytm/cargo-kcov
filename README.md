@@ -2,7 +2,7 @@ cargo-kcov
 ==========
 
 [![Build status](https://travis-ci.org/kennytm/cargo-kcov.svg?branch=master)](https://travis-ci.org/kennytm/cargo-kcov)
-[![Coverage Status](https://coveralls.io/repos/github/kennytm/cargo-kcov/badge.svg?branch=coveralls)](https://coveralls.io/github/kennytm/cargo-kcov?branch=coveralls)
+[![Coverage Status](https://coveralls.io/repos/github/kennytm/cargo-kcov/badge.svg?branch=master)](https://coveralls.io/github/kennytm/cargo-kcov?branch=master)
 [![crates.io](http://meritbadge.herokuapp.com/cargo-kcov)](https://crates.io/crates/cargo-kcov)
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -28,8 +28,10 @@ Prerequisite
 > **Important!** `kcov` only supports Linux at the moment. Track
 > [SimonKagstrom/kcov#135](https://github.com/SimonKagstrom/kcov/issues/135) for OS X support.
 
-You need to install `kcov` v26 or above. Some distro is still shipping v25 or v11, so you will need
-to build from source. Please follow the instruction in https://users.rust-lang.org/t/650.
+You need to install `kcov` v26 or above to collect coverage report from Rust. Some distro is still
+shipping v25 or v11, so you will need to build from source.
+Please follow the instruction in https://users.rust-lang.org/t/650. `cargo-kcov` requires v30 or
+above since earlier versions of kcov do not report its version number.
 
 Install
 -------
@@ -47,7 +49,7 @@ Options
     Generate coverage report via kcov
 
     USAGE:
-        cargo kcov [OPTIONS]
+        cargo kcov [OPTIONS] [--] [ARGS]
 
     OPTIONS:
             --lib                     Test only this package's library
@@ -62,9 +64,13 @@ Options
             --target <TRIPLE>         Build for the target triple
             --manifest-path <PATH>    Path to the manifest to build tests for
             --no-fail-fast            Run all tests regardless of failure
+            --kcov <PATH>             Path to the kcov executable
+        -o, --output <PATH>           Output directory, default to [target/cov]
         -v, --verbose                 Use verbose output
+            --coveralls               Upload merged coverage data to coveralls.io from Travis CI
         -h, --help                    Prints help information
         -V, --version                 Prints version information
 
-
+    ARGS:
+        <KCOV-ARGS>...    Further arguments passed to kcov
 
