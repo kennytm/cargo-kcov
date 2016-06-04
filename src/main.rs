@@ -90,6 +90,9 @@ fn create_arg_parser() -> App<'static, 'static> {
                                          `target/` folder is used exclusively by one rustc/cargo \
                                          version only, and the test cases are built with \
                                          `RUSTFLAGS=\"-C link-dead-code\" cargo test`.'
+                --print-install-kcov-sh 'Prints the sh code that installs kcov to `~/.cargo/bin`. \
+                                         Note that this will *not* install dependencies required by \
+                                         kcov.'
                 [KCOV-ARGS]...          'Further arguments passed to kcov'
             ")
         )
@@ -107,6 +110,11 @@ fn filtering_arg<'a, 'b>(name: &'a str, help: &'b str) -> Arg<'a, 'b> {
 fn run(matches: &ArgMatches) -> Result<(), Error> {
     if cfg!(any(target_os="windows", target_os="macos", target_os="ios")) {
         return Err(Error::UnsupportedOS);
+    }
+
+    if matches.is_present("print-install-kcov-sh") {
+        println!("{}", include_str!("install_kcov.sh"));
+        return Ok(());
     }
 
     let is_verbose = matches.is_present("verbose");

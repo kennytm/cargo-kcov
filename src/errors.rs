@@ -121,16 +121,7 @@ impl Error {
                 t.fg(WHITE).unwrap();
                 t.write_all(b"    $ ").unwrap();
                 t.reset().unwrap();
-                writeln!(t, "wget https://github.com/SimonKagstrom/kcov/archive/v{0}.tar.gz &&
-        tar xzf v{0}.tar.gz &&
-        cd kcov-{0} &&
-        mkdir build &&
-        cd build &&
-        cmake -DCMAKE_BUILD_TYPE=Release .. &&
-        make &&
-        cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin
-
-                ", 31).unwrap();
+                writeln!(t, "cargo kcov --print-install-kcov-sh | sh").unwrap();
             }
             Error::CannotFindTestTargets(_) => {
                 t.fg(GREEN).unwrap();
