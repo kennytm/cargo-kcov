@@ -49,6 +49,10 @@ pub fn test_this_in_eighth() -> bool {
     true
 }
 
+pub fn test_this_in_korean() -> bool {
+    true
+}
+
 pub fn should_never_test_this() -> bool {
     true
 }
