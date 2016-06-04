@@ -156,7 +156,7 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
         RegexSet::new(filter.map(|f| format!("^{}-[0-9a-f]{{16}}$", quote(f.as_ref()))))
     }.unwrap();
 
-    (|| {
+    let result = (|| {
         let mut result = Vec::new();
 
         for entry in try!(target_folder.read_dir()) {
@@ -177,7 +177,16 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
         }
 
         Ok(result)
-    })().map_err(|e| Error::CannotFindTestTargets(e))
+    })();
+
+    match result {
+        Ok(r) => if r.is_empty() {
+            Err(Error::CannotFindTestTargets(None))
+        } else {
+            Ok(r)
+        },
+        Err(e) => Err(Error::CannotFindTestTargets(Some(e))),
+    }
 }
 
 #[cfg(unix)]
@@ -277,6 +286,15 @@ fn test_find_test_targets() {
             root_path.join("sixth-cd20d019c38b7035"),
         ];
         assert_eq!(actual_paths, expected_paths);
+    }
+
+    //test_found_nothing
+    {
+        let result = find_test_targets(root_path, &["asdaksdhaskdkasdk"]);
+        match result {
+            Err(Error::CannotFindTestTargets(None)) => {},
+            _ => assert!(false),
+        }
     }
 }
 
