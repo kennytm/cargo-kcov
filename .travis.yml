@@ -38,6 +38,7 @@ install:
         cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin &&
         cd ../..
     - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
+    - export RUSTFLAGS="-C link-dead-code"
     - kcov --version
 
     # 2. Install cross-compiling toolchain.
@@ -51,7 +52,8 @@ install:
         fi
 
 script:
-    - RUSTFLAGS="-C link-dead-code" cargo test --target "$HOST"
+    - cargo build --target "$HOST"
+    - cargo test --target "$HOST"
 
 after_success:
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.

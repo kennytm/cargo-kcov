@@ -291,10 +291,10 @@ fn find_tests(matches: &ArgMatches, pkgid: &str, path: PathBuf) -> Result<Vec<Pa
 fn get_args_for_find_test_targets<'a>(matches: &'a ArgMatches,
                                       pkgid: &'a str,
                                       mut path: PathBuf) -> (PathBuf, HashSet<Cow<'a, str>>) {
-    path.push(if matches.is_present("release") { "release" } else { "debug" });
     if let Some(target) = matches.value_of_os("target") {
         path.push(target);
     }
+    path.push(if matches.is_present("release") { "release" } else { "debug" });
 
     let mut file_name_filters = HashSet::new();
     if matches.is_present("lib") {
@@ -339,7 +339,7 @@ fn test_get_args_for_find_test_targets() {
             &[]);
 
     do_test(&["cargo", "kcov", "--no-clean-rebuild", "--target", "i586-unknown-linux-gnu"],
-            Path::new("/path/to/some/great-project/target/debug/i586-unknown-linux-gnu"),
+            Path::new("/path/to/some/great-project/target/i586-unknown-linux-gnu/debug"),
             &[]);
 
     do_test(&["cargo", "kcov", "--no-clean-rebuild", "--lib"],
