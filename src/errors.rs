@@ -26,6 +26,7 @@ pub enum Error {
     },
     KcovFailed(Option<io::Error>),
     NoCoverallsId,
+    CannotFindTestTargets(Option<io::Error>),
 }
 
 impl Error {
@@ -41,6 +42,7 @@ impl Error {
             Error::CannotCreateCoverageDirectory(_) => "cannot create coverage output directory",
             Error::KcovFailed(_) => "failed to get coverage",
             Error::NoCoverallsId => "missing environment variable TRAVIS_JOB_ID for coveralls",
+            Error::CannotFindTestTargets(_) => "cannot find test targets",
         }
     }
 
@@ -52,6 +54,7 @@ impl Error {
             Error::Json(ref e) => e.as_ref().map(|a| a as &Display),
             Error::CannotCreateCoverageDirectory(ref e) => Some(e),
             Error::KcovFailed(ref e) => e.as_ref().map(|a| a as &Display),
+            Error::CannotFindTestTargets(ref e) => e.as_ref().map(|a| a as &Display),
             _ => None,
         }
     }
@@ -118,16 +121,22 @@ impl Error {
                 t.fg(WHITE).unwrap();
                 t.write_all(b"    $ ").unwrap();
                 t.reset().unwrap();
-                writeln!(t, "wget https://github.com/SimonKagstrom/kcov/archive/v{0}.tar.gz &&
-        tar xzf v{0}.tar.gz &&
-        cd kcov-{0} &&
-        mkdir build &&
-        cd build &&
-        cmake -DCMAKE_BUILD_TYPE=Release .. &&
-        make &&
-        cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin
+                writeln!(t, "cargo kcov --print-install-kcov-sh | sh").unwrap();
+            }
+            Error::CannotFindTestTargets(_) => {
+                t.fg(GREEN).unwrap();
+                t.attr(Attr::Bold).unwrap();
+                t.write_all(b"note: ").unwrap();
+                t.reset().unwrap();
+                t.write_all(b"try a clean rebuild first:\n\n").unwrap();
+                t.fg(WHITE).unwrap();
+                t.write_all(b"    $ ").unwrap();
+                t.reset().unwrap();
+                writeln!(t, "cargo clean &&
+        RUSTFLAGS=\"-C link-dead-code\" cargo test --no-run &&
+        cargo kcov --no-clean-rebuild
 
-                ", 31).unwrap();
+                ").unwrap();
             }
             _ => {}
         }

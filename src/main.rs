@@ -21,6 +21,8 @@
 extern crate shlex;
 extern crate term;
 extern crate rustc_serialize;
+extern crate regex;
+#[cfg(test)] extern crate tempdir;
 
 mod errors;
 mod cargo;
@@ -31,18 +33,30 @@ use std::fs::{remove_dir_all, create_dir_all};
 use std::path::PathBuf;
 use std::ffi::{OsStr, OsString};
 use std::env::var_os;
+use std::collections::HashSet;
+use std::borrow::Cow;
 
 use clap::{App, Arg, ArgMatches, AppSettings, SubCommand};
 
 use errors::Error;
 use cargo::{cargo, Cmd};
-use target_finder::parse_rustc_command_lines_into;
+use target_finder::*;
 use term::color::GREEN;
 use term::{stderr, Attr};
 use rustc_serialize::json::Json;
 
 fn main() {
-    let matches = App::new("cargo-kcov")
+    let matches = create_arg_parser().get_matches();
+    let matches = matches.subcommand_matches("kcov").expect("Expecting subcommand `kcov`.");
+
+    match run(&matches) {
+        Ok(_) => {},
+        Err(e) => e.print_error_and_quit(),
+    }
+}
+
+fn create_arg_parser() -> App<'static, 'static> {
+    App::new("cargo-kcov")
         .about("Generate coverage report via kcov")
         .version(crate_version!())
         .bin_name("cargo")
@@ -69,17 +83,19 @@ fn main() {
                 -o, --output [PATH]     'Output directory, default to [target/cov]'
                 -v, --verbose           'Use verbose output'
                 --coveralls             'Upload merged coverage data to coveralls.io from Travis CI'
+                --no-clean-rebuild      'Do not perform a clean rebuild before collecting coverage. \
+                                         This improves performance when the test case was already \
+                                         built for coverage, but may cause wrong coverage statistics \
+                                         if used incorrectly. If you use this option, make sure the \
+                                         `target/` folder is used exclusively by one rustc/cargo \
+                                         version only, and the test cases are built with \
+                                         `RUSTFLAGS=\"-C link-dead-code\" cargo test`.'
+                --print-install-kcov-sh 'Prints the sh code that installs kcov to `~/.cargo/bin`. \
+                                         Note that this will *not* install dependencies required by \
+                                         kcov.'
                 [KCOV-ARGS]...          'Further arguments passed to kcov'
             ")
         )
-        .get_matches();
-
-    let matches = matches.subcommand_matches("kcov").expect("Expecting subcommand `kcov`.");
-
-    match run(&matches) {
-        Ok(_) => {},
-        Err(e) => e.print_error_and_quit(),
-    }
 }
 
 fn filtering_arg<'a, 'b>(name: &'a str, help: &'b str) -> Arg<'a, 'b> {
@@ -96,6 +112,11 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         return Err(Error::UnsupportedOS);
     }
 
+    if matches.is_present("print-install-kcov-sh") {
+        println!("{}", include_str!("install_kcov.sh"));
+        return Ok(());
+    }
+
     let is_verbose = matches.is_present("verbose");
     let kcov_path = try!(check_kcov(matches));
 
@@ -104,21 +125,28 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     let full_pkgid = try!(get_pkgid(matches));
     let pkgid = full_pkgid.trim_right();
 
-    if is_verbose {
-        write_msg("Clean", pkgid);
-    }
-    try!(clean(matches, pkgid));
+    let target_path = try!(find_target_path(matches));
 
-    if is_verbose {
-        write_msg("Build", "test executables");
+    let tests;
+    if matches.is_present("no-clean-rebuild") {
+        tests = try!(find_tests(matches, pkgid, target_path.clone()));
+    } else {
+        if is_verbose {
+            write_msg("Clean", pkgid);
+        }
+        try!(clean(matches, pkgid));
+
+        if is_verbose {
+            write_msg("Build", "test executables");
+        }
+        tests = try!(build_test(matches));
     }
-    let tests = try!(build_test(matches));
 
     if is_verbose {
         write_msg("Coverage", &format!("found the following executables: {:?}", tests));
     }
 
-    let cov_path = try!(create_cov_path(matches));
+    let cov_path = try!(create_cov_path(matches, target_path));
     let kcov_args = match matches.values_of_os("KCOV-ARGS") {
         Some(a) => a.collect(),
         None => Vec::new(),
@@ -190,25 +218,31 @@ fn get_coveralls_option(matches: &ArgMatches) -> Result<Option<OsString>, Error>
     }
 }
 
-fn create_cov_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
+
+fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
+    let (json, _) = try!(cargo("locate-project")
+        .forward(matches, &["--manifest-path"])
+        .output()
+    );
+    let json = try!(Json::from_str(&json));
+    match json.find("root").and_then(|j| j.as_string()) {
+        None => return Err(Error::Json(None)),
+        Some(p) => {
+            let mut root = PathBuf::from(p);
+            root.pop();
+            root.push("target");
+            Ok(root)
+        }
+    }
+}
+
+
+fn create_cov_path(matches: &ArgMatches, mut target_path: PathBuf) -> Result<PathBuf, Error> {
     let cov_path = match matches.value_of_os("output") {
         Some(p) => PathBuf::from(p),
         None => {
-            let (json, _) = try!(cargo("locate-project")
-                .forward(matches, &["--manifest-path"])
-                .output()
-            );
-            let json = try!(Json::from_str(&json));
-            match json.find("root").and_then(|j| j.as_string()) {
-                None => return Err(Error::Json(None)),
-                Some(p) => {
-                    let mut root = PathBuf::from(p);
-                    root.pop();
-                    root.push("target");
-                    root.push("cov");
-                    root
-                }
-            }
+            target_path.push("cov");
+            target_path
         }
     };
 
@@ -245,4 +279,75 @@ fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
     Ok(targets)
 }
 
+
+//-------------------------------------------------------------------------------------------------
+
+/// Find all test executables using `read_dir` without clean-rebuild.
+fn find_tests(matches: &ArgMatches, pkgid: &str, path: PathBuf) -> Result<Vec<PathBuf>, Error> {
+    let (path, file_name_filters) = get_args_for_find_test_targets(matches, pkgid, path);
+    find_test_targets(&path, file_name_filters)
+}
+
+fn get_args_for_find_test_targets<'a>(matches: &'a ArgMatches,
+                                      pkgid: &'a str,
+                                      mut path: PathBuf) -> (PathBuf, HashSet<Cow<'a, str>>) {
+    path.push(if matches.is_present("release") { "release" } else { "debug" });
+    if let Some(target) = matches.value_of_os("target") {
+        path.push(target);
+    }
+
+    let mut file_name_filters = HashSet::new();
+    if matches.is_present("lib") {
+        file_name_filters.insert(find_package_name_from_pkgid(pkgid));
+    }
+    extend_file_name_filters(&mut file_name_filters, matches, "bin");
+    extend_file_name_filters(&mut file_name_filters, matches, "example");
+    extend_file_name_filters(&mut file_name_filters, matches, "test");
+    extend_file_name_filters(&mut file_name_filters, matches, "bench");
+
+    (path, file_name_filters)
+}
+
+fn extend_file_name_filters<'a>(filters: &mut HashSet<Cow<'a, str>>, matches: &'a ArgMatches<'a>, key: &str) {
+    if let Some(values) = matches.values_of(key) {
+        filters.extend(values.map(normalize_package_name));
+    }
+}
+
+#[test]
+fn test_get_args_for_find_test_targets() {
+    use std::path::Path;
+
+    let path = Path::new("/path/to/some/great-project/target");
+    let pkgid = "file:///path/to/some/great-project#0.1.0";
+    let mut app = create_arg_parser();
+
+    let mut do_test = |args: &[&'static str], expected_path, expected_filters: &[&'static str]| {
+        let matches = app.get_matches_from_safe_borrow(args).unwrap();
+        let matches = matches.subcommand_matches("kcov").unwrap();
+        let args = get_args_for_find_test_targets(&matches, pkgid, path.to_path_buf());
+        assert_eq!(args.0, expected_path);
+        assert_eq!(args.1, expected_filters.iter().map(|x| Cow::Borrowed(*x)).collect());
+    };
+
+    do_test(&["cargo", "kcov", "--no-clean-rebuild"],
+            Path::new("/path/to/some/great-project/target/debug"),
+            &[]);
+
+    do_test(&["cargo", "kcov", "--no-clean-rebuild", "--release"],
+            Path::new("/path/to/some/great-project/target/release"),
+            &[]);
+
+    do_test(&["cargo", "kcov", "--no-clean-rebuild", "--target", "i586-unknown-linux-gnu"],
+            Path::new("/path/to/some/great-project/target/debug/i586-unknown-linux-gnu"),
+            &[]);
+
+    do_test(&["cargo", "kcov", "--no-clean-rebuild", "--lib"],
+            Path::new("/path/to/some/great-project/target/debug"),
+            &["great_project"]);
+
+    do_test(&["cargo", "kcov", "--no-clean-rebuild", "--lib", "--bin", "a", "--bin", "b-c-d", "--test", "e", "--example", "ff", "--bench", "g"],
+            Path::new("/path/to/some/great-project/target/debug"),
+            &["great_project", "a", "b_c_d", "e", "ff", "g"]);
+}
 
