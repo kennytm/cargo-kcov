@@ -15,6 +15,7 @@ os:
 
 rust:
     - 1.8.0
+    - 1.9.0
     - beta
     - nightly
 
@@ -50,11 +51,10 @@ install:
         fi
 
 script:
-    - cargo test --target "$HOST"
+    - RUSTFLAGS="-C link-dead-code" cargo test --target "$HOST"
 
 after_success:
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
     # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
-    - cargo clean
-    - cargo run -- kcov --bin cargo-kcov --coveralls -- --verify
+    - cargo run -- kcov --target "$HOST" --no-clean-rebuild --lib --coveralls -- --verify
 
