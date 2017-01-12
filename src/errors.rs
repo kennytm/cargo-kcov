@@ -116,7 +116,12 @@ impl Error {
                 t.fg(WHITE).unwrap();
                 t.write_all(b"    $ ").unwrap();
                 t.reset().unwrap();
-                writeln!(t, "sudo apt-get install libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc\n").unwrap();
+                writeln!(t, "sudo apt-get install cmake g++ pkg-config\n").unwrap();
+
+                t.fg(WHITE).unwrap();
+                t.write_all(b"    $ ").unwrap();
+                t.reset().unwrap();
+                writeln!(t, "sudo apt-get install libcurl4-openssl-dev libdw-dev binutils-dev libiberty-dev\n").unwrap();
 
                 t.fg(WHITE).unwrap();
                 t.write_all(b"    $ ").unwrap();

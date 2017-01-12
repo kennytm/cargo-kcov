@@ -8,29 +8,32 @@ addons:
             - libelf-dev
             - libdw-dev
             - binutils-dev
-            - gcc-multilib
+            - libiberty-dev
+            - g++
 
 os:
     - linux
+#   - osx
 
 rust:
-    - 1.8.0
-    - 1.9.0
-    - beta
+    - 1.11.0
+    - 1.14.0
     - nightly
 
 env:
     matrix:
         - ARCH=x86_64
-        - ARCH=i686
+#       - ARCH=i686
+        # ignoring 32-bit targets until a proper 32-bit environment is provided.
+        # see https://github.com/travis-ci/travis-ci/issues/986
 
 install:
-    # 1. Install kcov v31.
+    # 1. Install kcov v32.
     - mkdir -p ~/.cargo/bin
     - |
-        wget https://github.com/SimonKagstrom/kcov/archive/v31.tar.gz &&
-        tar xzf v31.tar.gz &&
-        cd kcov-31 &&
+        wget https://github.com/SimonKagstrom/kcov/archive/v32.tar.gz &&
+        tar xzf v32.tar.gz &&
+        cd kcov-32 &&
         mkdir build &&
         cd build &&
         cmake .. &&
@@ -41,22 +44,22 @@ install:
     - export RUSTFLAGS="-C link-dead-code"
     - kcov --version
 
-    # 2. Install cross-compiling toolchain.
-    - SYSROOT=$(rustc --print sysroot)
-    - export HOST=$ARCH-unknown-linux-gnu
-    - |
-        if [ ! -d "$SYSROOT/lib/rustlib/$HOST" ]; then
-            curl -SfLO "https://static.rust-lang.org/dist/rust-$TRAVIS_RUST_VERSION-$HOST.tar.gz" &&
-            tar xf "rust-$TRAVIS_RUST_VERSION-$HOST.tar.gz" "rust-$TRAVIS_RUST_VERSION-$HOST/rust-std-$HOST/lib/rustlib/$HOST" &&
-            mv "rust-$TRAVIS_RUST_VERSION-$HOST/rust-std-$HOST/lib/rustlib/$HOST" "$SYSROOT/lib/rustlib"
-        fi
+    # 2. Install rustup.
+    - if [ "$TRAVIS_OS_NAME" = 'linux' ]; then OS=unknown-linux-gnu; else OS=apple-darwin; fi
+    - export HOST=$ARCH-$OS
+    - curl -SfLO "https://static.rust-lang.org/rustup/dist/$HOST/rustup-init"
+    - chmod u+x rustup-init
+    - ./rustup-init -y --default-host "$HOST" --default-toolchain "$TRAVIS_RUST_VERSION"
+    - export PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH
+    - rustc -vV
+    - cargo -vV
 
 script:
-    - cargo build --target "$HOST"
-    - cargo test --target "$HOST"
+    - cargo build
+    - cargo test
 
 after_success:
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
     # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
-    - cargo run -- kcov --target "$HOST" --no-clean-rebuild --lib --coveralls -- --verify
+    - cargo run -- kcov --no-clean-rebuild --lib --coveralls -- --verify
 

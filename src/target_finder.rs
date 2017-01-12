@@ -6,7 +6,7 @@ use std::convert::AsRef;
 use std::iter::IntoIterator;
 
 use shlex::Shlex;
-use regex::{RegexSet, quote};
+use regex::{RegexSet, escape};
 
 use errors::Error;
 
@@ -153,7 +153,7 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
     let test_target_regex = if filter.len() == 0 {
         RegexSet::new(&["^[^-]+-[0-9a-f]{16}$"])
     } else {
-        RegexSet::new(filter.map(|f| format!("^{}-[0-9a-f]{{16}}$", quote(f.as_ref()))))
+        RegexSet::new(filter.map(|f| format!("^{}-[0-9a-f]{{16}}$", escape(f.as_ref()))))
     }.unwrap();
 
     let result = (|| {

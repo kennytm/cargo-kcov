@@ -25,13 +25,16 @@ The coverage report can be read from `target/cov/index.html`.
 Prerequisite
 ------------
 
-> **Important!** `kcov` only supports Linux at the moment. Track
-> [SimonKagstrom/kcov#135](https://github.com/SimonKagstrom/kcov/issues/135) for OS X support.
+> **Important!** `kcov` only supports covering Rust programs on Linux at the moment. Track
+> [SimonKagstrom/kcov#135](https://github.com/SimonKagstrom/kcov/issues/135) and
+> [#157](https://github.com/SimonKagstrom/kcov/issues/157) for macOS support.
 
 You need to install `kcov` v26 or above to collect coverage report from Rust. Some distro is still
 shipping v25 or v11, so you will need to build from source.
-Please follow the instruction in https://users.rust-lang.org/t/650. `cargo-kcov` requires v30 or
+Please follow the instruction in <https://users.rust-lang.org/t/650>. `cargo-kcov` requires v30 or
 above since earlier versions of kcov do not report its version number.
+
+cargo-kcov requires Rust 1.11.0 or above (requirement by the `clap` crate).
 
 Install
 -------
@@ -45,7 +48,7 @@ $ cargo install cargo-kcov
 Options
 -------
 
-    cargo-kcov 0.1.0
+    cargo-kcov 0.2.1
     Generate coverage report via kcov
 
     USAGE:

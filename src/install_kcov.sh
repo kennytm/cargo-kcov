@@ -2,7 +2,9 @@
 
 set -eu
 
-KCOV_VERSION=31
+KCOV_VERSION=32
+
+rm -rf v${KCOV_VERSION}.tar.gz kcov-${KCOV_VERSION}/
 
 wget https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz
 tar xzf v${KCOV_VERSION}.tar.gz
