@@ -33,7 +33,7 @@ fn test_specimen() {
         .expect("cargo clean");
 
     Command::new("cargo")
-        .args(&["run", "--", "kcov", "--manifest-path", "specimen/Cargo.toml", "--", "--verify"])
+        .args(&["run", "--", "kcov", "--manifest-path", "specimen/Cargo.toml"])
         .status()
         .expect("cargo run kcov");
 

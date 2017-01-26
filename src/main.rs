@@ -93,7 +93,9 @@ fn create_arg_parser() -> App<'static, 'static> {
                 --print-install-kcov-sh 'Prints the sh code that installs kcov to `~/.cargo/bin`. \
                                          Note that this will *not* install dependencies required by \
                                          kcov.'
-                [KCOV-ARGS]...          'Further arguments passed to kcov'
+                [KCOV-ARGS]...          'Further arguments passed to kcov. If empty, the default \
+                                         arguments `--verify --exclude-pattern=/.cargo` will be \
+                                         passed to kcov.'
             ")
         )
 }
@@ -149,14 +151,17 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     let cov_path = try!(create_cov_path(matches, target_path));
     let kcov_args = match matches.values_of_os("KCOV-ARGS") {
         Some(a) => a.collect(),
-        None => Vec::new(),
+        None => vec![
+            OsStr::new("--exclude-pattern=/.cargo"),
+            OsStr::new("--verify"),
+        ],
     };
 
     let mut merge_cov_paths = Vec::with_capacity(tests.len());
     for test in tests {
         let mut pre_cov_path = cov_path.clone();
         pre_cov_path.push(test.file_name().unwrap());
-        let cmd = Cmd::new(&kcov_path, "--exclude-pattern=/.cargo")
+        let cmd = Cmd::new(&kcov_path, "")
             .env("LD_LIBRARY_PATH", ":", "target/debug/deps")
             .args(&kcov_args)
             .args(&[&pre_cov_path, &test]);
@@ -167,7 +172,7 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         merge_cov_paths.push(pre_cov_path);
     }
 
-    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&[cov_path]);
+    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&kcov_args).args(&[cov_path]);
     if let Some(opt) = coveralls_option {
         merge_cmd = merge_cmd.args(&[opt]);
     }

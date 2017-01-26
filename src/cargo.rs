@@ -43,7 +43,9 @@ fn parse_arg_type(option: &str) -> Option<ArgType> {
 impl Cmd {
     pub fn new<S: AsRef<OsStr>>(command: S, subcommand: &'static str) -> Self {
         let mut command = Command::new(command);
-        command.arg(subcommand);
+        if !subcommand.is_empty() {
+            command.arg(subcommand);
+        }
         Cmd {
             cmd: command,
             subcommand: subcommand,

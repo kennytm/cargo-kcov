@@ -18,9 +18,8 @@ In the project run
 $ cargo kcov
 ```
 
-It will run all test cases and collect coverage statistics via kcov.
-
-The coverage report can be read from `target/cov/index.html`.
+It will run all test cases and collect coverage statistics via kcov. The coverage report can be read
+from `target/cov/index.html`.
 
 Prerequisite
 ------------
@@ -48,7 +47,7 @@ $ cargo install cargo-kcov
 Options
 -------
 
-    cargo-kcov 0.2.1
+    cargo-kcov 0.3.0
     Generate coverage report via kcov
 
     USAGE:

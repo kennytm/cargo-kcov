@@ -28,12 +28,13 @@ env:
         # see https://github.com/travis-ci/travis-ci/issues/986
 
 install:
-    # 1. Install kcov v32.
+    # 1. Install kcov v33.
+    - export KCOV_VERSION=33
     - mkdir -p ~/.cargo/bin
     - |
-        wget https://github.com/SimonKagstrom/kcov/archive/v32.tar.gz &&
-        tar xzf v32.tar.gz &&
-        cd kcov-32 &&
+        wget https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz &&
+        tar xzf v${KCOV_VERSION}.tar.gz &&
+        cd kcov-${KCOV_VERSION} &&
         mkdir build &&
         cd build &&
         cmake .. &&
@@ -61,5 +62,5 @@ script:
 after_success:
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
     # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
-    - cargo run -- kcov --no-clean-rebuild --lib --coveralls -- --verify
+    - cargo run -- kcov --no-clean-rebuild --lib --coveralls
 
