@@ -1,6 +1,7 @@
 use std::process::Command;
 use std::convert::AsRef;
 use std::ffi::OsStr;
+use std::fmt;
 use std::env::var_os;
 
 use clap::ArgMatches;
@@ -10,6 +11,13 @@ use errors::Error;
 pub struct Cmd {
     cmd: Command,
     subcommand: &'static str,
+}
+
+impl fmt::Display for Cmd {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::fmt::Debug;
+        self.cmd.fmt(f)
+    }
 }
 
 enum ArgType {

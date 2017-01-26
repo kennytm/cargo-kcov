@@ -156,11 +156,14 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     for test in tests {
         let mut pre_cov_path = cov_path.clone();
         pre_cov_path.push(test.file_name().unwrap());
-        try!(Cmd::new(&kcov_path, "--exclude-pattern=/.cargo")
+        let cmd = Cmd::new(&kcov_path, "--exclude-pattern=/.cargo")
             .env("LD_LIBRARY_PATH", ":", "target/debug/deps")
             .args(&kcov_args)
-            .args(&[&pre_cov_path, &test])
-            .run_kcov());
+            .args(&[&pre_cov_path, &test]);
+        if is_verbose {
+            write_msg("Running", &cmd.to_string());
+        }
+        try!(cmd.run_kcov());
         merge_cov_paths.push(pre_cov_path);
     }
 
@@ -168,7 +171,11 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     if let Some(opt) = coveralls_option {
         merge_cmd = merge_cmd.args(&[opt]);
     }
-    try!(merge_cmd.args(&merge_cov_paths).run_kcov());
+    merge_cmd = merge_cmd.args(&merge_cov_paths);
+    if is_verbose {
+        write_msg("Running", &merge_cmd.to_string());
+    }
+    try!(merge_cmd.run_kcov());
 
     Ok(())
 }
