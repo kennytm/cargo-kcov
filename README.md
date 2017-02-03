@@ -47,7 +47,7 @@ $ cargo install cargo-kcov
 Options
 -------
 
-    cargo-kcov 0.3.0
+    cargo-kcov 0.3.1
     Generate coverage report via kcov
 
     USAGE:
