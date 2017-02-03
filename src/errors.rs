@@ -7,8 +7,10 @@ use std::string::FromUtf8Error;
 use std::str::Utf8Error;
 
 use term::color::{YELLOW, GREEN, RED, WHITE};
-use term::{stderr, Attr};
+use term::Attr;
 use rustc_serialize::json::BuilderError;
+
+use stderr;
 
 #[derive(Debug)]
 pub enum Error {
@@ -76,7 +78,7 @@ impl From<BuilderError> for Error {
 impl Error {
     /// Prints the error message and quit.
     pub fn print_error_and_quit(&self) -> ! {
-        let mut t = stderr().expect("Could not open stderr!");
+        let mut t = stderr::new();
 
         t.fg(RED).unwrap();
         t.attr(Attr::Bold).unwrap();

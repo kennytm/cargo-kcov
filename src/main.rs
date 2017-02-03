@@ -24,6 +24,7 @@ extern crate rustc_serialize;
 extern crate regex;
 #[cfg(test)] extern crate tempdir;
 
+mod stderr;
 mod errors;
 mod cargo;
 mod target_finder;
@@ -42,7 +43,7 @@ use errors::Error;
 use cargo::{cargo, Cmd};
 use target_finder::*;
 use term::color::GREEN;
-use term::{stderr, Attr};
+use term::Attr;
 use rustc_serialize::json::Json;
 
 fn main() {
@@ -186,7 +187,7 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
 }
 
 fn write_msg(title: &str, msg: &str) {
-    let mut t = stderr().unwrap();
+    let mut t = stderr::new();
     t.fg(GREEN).unwrap();
     t.attr(Attr::Bold).unwrap();
     write!(t, "{:>12}", title).unwrap();
