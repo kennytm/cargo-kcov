@@ -97,7 +97,7 @@ fn create_arg_parser() -> App<'static, 'static> {
                                          Note that this will *not* install dependencies required by \
                                          kcov.'
                 [KCOV-ARGS]...          'Further arguments passed to kcov. If empty, the default \
-                                         arguments `--verify --exclude-pattern=/.cargo` will be \
+                                         arguments `--verify --exclude-pattern=$CARGO_HOME` will be \
                                          passed to kcov.'
             ")
         )
@@ -153,11 +153,12 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
 
     let cov_path = try!(create_cov_path(matches, target_path));
     let kcov_args = match matches.values_of_os("KCOV-ARGS") {
-        Some(a) => a.collect(),
-        None => vec![
-            OsStr::new("--exclude-pattern=/.cargo"),
-            OsStr::new("--verify"),
-        ],
+        Some(a) => a.map(|s| s.to_owned()).collect(),
+        None => {
+            let mut exclude_pattern = OsString::from("--exclude-pattern=");
+            exclude_pattern.push(var_os("CARGO_HOME").as_ref().map_or(OsStr::new("/.cargo"), |s| s));
+            vec![exclude_pattern, OsString::from("--verify")]
+        },
     };
 
     let mut merge_cov_paths = Vec::with_capacity(tests.len());
