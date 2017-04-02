@@ -17,7 +17,8 @@ os:
 
 rust:
     - 1.11.0
-    - 1.14.0
+    - 1.16.0
+    - beta
     - nightly
 
 env:
@@ -29,18 +30,8 @@ env:
 
 install:
     # 1. Install kcov v33.
-    - export KCOV_VERSION=33
     - mkdir -p ~/.cargo/bin
-    - |
-        wget https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz &&
-        tar xzf v${KCOV_VERSION}.tar.gz &&
-        cd kcov-${KCOV_VERSION} &&
-        mkdir build &&
-        cd build &&
-        cmake .. &&
-        make &&
-        cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin &&
-        cd ../..
+    - sh src/install_kcov.sh
     - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
     - export RUSTFLAGS="-C link-dead-code"
     - kcov --version
