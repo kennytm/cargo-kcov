@@ -1,5 +1,5 @@
 language: rust
-sudo: false
+sudo: true
 
 addons:
     apt:
@@ -10,13 +10,14 @@ addons:
             - binutils-dev
             #- libiberty-dev # <- no such thing in Ubuntu 12.04
             - g++
+            - gdb
 
 os:
     - linux
 #   - osx
 
 rust:
-    - 1.11.0
+    - 1.14.0
     - 1.16.0
     - beta
     - nightly
@@ -39,19 +40,25 @@ install:
     # 2. Install rustup.
     - if [ "$TRAVIS_OS_NAME" = 'linux' ]; then OS=unknown-linux-gnu; else OS=apple-darwin; fi
     - export HOST=$ARCH-$OS
-    - curl -SfLO "https://static.rust-lang.org/rustup/dist/$HOST/rustup-init"
-    - chmod u+x rustup-init
-    - ./rustup-init -y --default-host "$HOST" --default-toolchain "$TRAVIS_RUST_VERSION"
+    # - curl -SfLO "https://static.rust-lang.org/rustup/dist/$HOST/rustup-init"
+    # - chmod u+x rustup-init
+    # - ./rustup-init -y --default-host "$HOST" --default-toolchain "$TRAVIS_RUST_VERSION"
     - export PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH
     - rustc -vV
     - cargo -vV
+
+before_script:
+    ulimit -c unlimited -S
 
 script:
     - cargo build
     - cargo test
 
-after_success:
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
     # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
-    - cargo run -- kcov --no-clean-rebuild --lib --coveralls
+    # - cargo run -- kcov --verbose --no-clean-rebuild --lib --coveralls
+    - mkdir -p /home/travis/build/kennytm/cargo-kcov/target/cov/
+    - kcov --exclude-pattern=/home/travis/.cargo --verify /home/travis/build/kennytm/cargo-kcov/target/cov/ /home/travis/build/kennytm/cargo-kcov/target/debug/cargo_kcov-*
+    - ls -la
+    - for i in $(find ./ -maxdepth 1 -name 'core*' -print); do gdb ~/.cargo/bin/kcov core* -ex "thread apply all bt" -ex "set pagination 0" -batch; done;
 
