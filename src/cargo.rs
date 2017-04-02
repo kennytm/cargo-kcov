@@ -111,9 +111,8 @@ impl Cmd {
 
     pub fn run_kcov(mut self) -> Result<(), Error> {
         match self.cmd.status() {
-            Ok(s) if s.success() => Ok(()),
-            Ok(_) => Err(Error::KcovFailed(None)),
-            Err(e) => Err(Error::KcovFailed(Some(e))),
+            Ok(ref s) if s.success() => Ok(()),
+            s => Err(Error::KcovFailed(s)),
         }
     }
 }

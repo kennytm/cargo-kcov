@@ -26,7 +26,7 @@ pub enum Error {
         status: ExitStatus,
         stderr: Vec<u8>,
     },
-    KcovFailed(Option<io::Error>),
+    KcovFailed(io::Result<ExitStatus>),
     NoCoverallsId,
     CannotFindTestTargets(Option<io::Error>),
 }
@@ -55,7 +55,8 @@ impl Error {
             Error::Utf8(ref e) => Some(e),
             Error::Json(ref e) => e.as_ref().map(|a| a as &Display),
             Error::CannotCreateCoverageDirectory(ref e) => Some(e),
-            Error::KcovFailed(ref e) => e.as_ref().map(|a| a as &Display),
+            Error::KcovFailed(Ok(ref e)) => Some(e),
+            Error::KcovFailed(Err(ref e)) => Some(e),
             Error::CannotFindTestTargets(ref e) => e.as_ref().map(|a| a as &Display),
             _ => None,
         }
