@@ -22,6 +22,7 @@ extern crate shlex;
 extern crate term;
 extern crate rustc_serialize;
 extern crate regex;
+extern crate open;
 #[cfg(test)] extern crate tempdir;
 
 mod stderr;
@@ -31,7 +32,7 @@ mod target_finder;
 
 use std::process::Command;
 use std::fs::{remove_dir_all, create_dir_all};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ffi::{OsStr, OsString};
 use std::env::var_os;
 use std::collections::HashSet;
@@ -42,7 +43,7 @@ use clap::{App, Arg, ArgMatches, AppSettings, SubCommand};
 use errors::Error;
 use cargo::{cargo, Cmd};
 use target_finder::*;
-use term::color::GREEN;
+use term::color::{GREEN, YELLOW};
 use term::Attr;
 use rustc_serialize::json::Json;
 
@@ -83,6 +84,7 @@ fn create_arg_parser() -> App<'static, 'static> {
                 --kcov [PATH]           'Path to the kcov executable'
                 -o, --output [PATH]     'Output directory, default to [target/cov]'
                 -v, --verbose           'Use verbose output'
+                --open                  'Open the coverage report on finish'
                 --coveralls             'Upload merged coverage data to coveralls.io from Travis CI'
                 --no-clean-rebuild      'Do not perform a clean rebuild before collecting coverage. \
                                          This improves performance when the test case was already \
@@ -173,7 +175,7 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         merge_cov_paths.push(pre_cov_path);
     }
 
-    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&kcov_args).args(&[cov_path]);
+    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&kcov_args).args(&[&cov_path]);
     if let Some(opt) = coveralls_option {
         merge_cmd = merge_cmd.args(&[opt]);
     }
@@ -182,6 +184,10 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         write_msg("Running", &merge_cmd.to_string());
     }
     try!(merge_cmd.run_kcov());
+
+    if matches.is_present("open") {
+        open_coverage_report(&cov_path);
+    }
 
     Ok(())
 }
@@ -292,6 +298,18 @@ fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
     Ok(targets)
 }
 
+fn open_coverage_report(output_path: &Path) {
+    let index_path = output_path.join("index.html");
+    write_msg("Opening", &index_path.to_string_lossy());
+    if let Err(e) = open::that(index_path) {
+        let mut t = stderr::new();
+        t.fg(YELLOW).unwrap();
+        t.attr(Attr::Bold).unwrap();
+        write!(t, "warning").unwrap();
+        t.reset().unwrap();
+        writeln!(t, ": cannot open coverage report, {}", e).unwrap();
+    }
+}
 
 //-------------------------------------------------------------------------------------------------
 

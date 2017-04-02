@@ -1,6 +1,6 @@
 [package]
 name = "cargo-kcov"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["kennytm <kennytm@gmail.com>"]
 description = "Cargo subcommand to run kcov to get coverage report on Linux"
 repository = "https://github.com/kennytm/cargo-kcov"
@@ -11,11 +11,12 @@ license = "MIT"
 travis-ci = { repository = "kennytm/cargo-kcov" }
 
 [dependencies]
-clap = "2.20.2"
+clap = "2.22.2"
 shlex = "0.1.1"
-term = "0.4.4"
-rustc-serialize = "0.3.22" # use serde instead? we just use it to parse a simple JSON...
+term = "0.4.5"
+rustc-serialize = "0.3.23" # use serde instead? we just use it to parse a simple JSON...
 regex = "0.2.1"
+open = "1.2.0"
 
 [dev-dependencies]
 rquery = "0.3.1"
