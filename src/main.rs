@@ -202,7 +202,7 @@ fn write_msg(title: &str, msg: &str) {
 }
 
 fn check_kcov<'a>(matches: &'a ArgMatches<'a>) -> Result<&'a OsStr, Error> {
-    let program = matches.value_of_os("kcov").unwrap_or(OsStr::new("kcov"));
+    let program = matches.value_of_os("kcov").unwrap_or_else(|| OsStr::new("kcov"));
     let output = match Command::new(program).arg("--version").output() {
         Ok(o) => o,
         Err(e) => return Err(Error::KcovNotInstalled(e)),
