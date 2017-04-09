@@ -246,7 +246,7 @@ fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
     );
     let json = try!(Json::from_str(&json));
     match json.find("root").and_then(|j| j.as_string()) {
-        None => return Err(Error::Json(None)),
+        None => Err(Error::Json(None)),
         Some(p) => {
             let mut root = PathBuf::from(p);
             root.pop();
