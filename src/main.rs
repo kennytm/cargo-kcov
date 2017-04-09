@@ -51,7 +51,7 @@ fn main() {
     let matches = create_arg_parser().get_matches();
     let matches = matches.subcommand_matches("kcov").expect("Expecting subcommand `kcov`.");
 
-    match run(&matches) {
+    match run(matches) {
         Ok(_) => {},
         Err(e) => e.print_error_and_quit(),
     }
