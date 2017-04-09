@@ -87,7 +87,7 @@ impl Error {
         t.reset().unwrap();
         writeln!(t, "{}", self.description()).unwrap();
 
-        if let Error::Cargo { ref subcommand, ref status, ref stderr } = *self {
+        if let Error::Cargo { subcommand, ref status, ref stderr } = *self {
             t.fg(YELLOW).unwrap();
             t.attr(Attr::Bold).unwrap();
             t.write_all(b"note: ").unwrap();
