@@ -1,4 +1,4 @@
-//! Wrapper of term::stderr which fallbacks to colorless output if disabled.
+//! Wrapper of `term::stderr` which fallbacks to colorless output if disabled.
 
 use std::io;
 use std::fmt::Arguments;

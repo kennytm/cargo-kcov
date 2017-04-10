@@ -51,7 +51,7 @@ fn main() {
     let matches = create_arg_parser().get_matches();
     let matches = matches.subcommand_matches("kcov").expect("Expecting subcommand `kcov`.");
 
-    match run(&matches) {
+    match run(matches) {
         Ok(_) => {},
         Err(e) => e.print_error_and_quit(),
     }
@@ -132,9 +132,8 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
 
     let target_path = try!(find_target_path(matches));
 
-    let tests;
-    if matches.is_present("no-clean-rebuild") {
-        tests = try!(find_tests(matches, pkgid, target_path.clone()));
+    let tests = if matches.is_present("no-clean-rebuild") {
+        try!(find_tests(matches, pkgid, target_path.clone()))
     } else {
         if is_verbose {
             write_msg("Clean", pkgid);
@@ -144,8 +143,8 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         if is_verbose {
             write_msg("Build", "test executables");
         }
-        tests = try!(build_test(matches));
-    }
+        try!(build_test(matches))
+    };
 
     if is_verbose {
         write_msg("Coverage", &format!("found the following executables: {:?}", tests));
@@ -203,7 +202,7 @@ fn write_msg(title: &str, msg: &str) {
 }
 
 fn check_kcov<'a>(matches: &'a ArgMatches<'a>) -> Result<&'a OsStr, Error> {
-    let program = matches.value_of_os("kcov").unwrap_or(OsStr::new("kcov"));
+    let program = matches.value_of_os("kcov").unwrap_or_else(|| OsStr::new("kcov"));
     let output = match Command::new(program).arg("--version").output() {
         Ok(o) => o,
         Err(e) => return Err(Error::KcovNotInstalled(e)),
@@ -246,7 +245,7 @@ fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
     );
     let json = try!(Json::from_str(&json));
     match json.find("root").and_then(|j| j.as_string()) {
-        None => return Err(Error::Json(None)),
+        None => Err(Error::Json(None)),
         Some(p) => {
             let mut root = PathBuf::from(p);
             root.pop();
