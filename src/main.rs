@@ -84,6 +84,7 @@ fn create_arg_parser() -> App<'static, 'static> {
                 --kcov [PATH]           'Path to the kcov executable'
                 -o, --output [PATH]     'Output directory, default to [target/cov]'
                 -v, --verbose           'Use verbose output'
+                --all                   'In a workspace, test all members'
                 --open                  'Open the coverage report on finish'
                 --coveralls             'Upload merged coverage data to coveralls.io from Travis CI'
                 --no-clean-rebuild      'Do not perform a clean rebuild before collecting coverage. \
@@ -126,25 +127,29 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     let kcov_path = try!(check_kcov(matches));
 
     let coveralls_option = try!(get_coveralls_option(matches));
-
-    let full_pkgid = try!(get_pkgid(matches));
-    let pkgid = full_pkgid.trim_right();
-
     let target_path = try!(find_target_path(matches));
+    let full_pkgid = try!(get_pkgid(matches));
+
+    let pkgid = if matches.is_present("all") {
+        None
+    } else {
+        full_pkgid.trim_right();
+        Some(full_pkgid.as_ref())
+    };
 
     let tests = if matches.is_present("no-clean-rebuild") {
-        try!(find_tests(matches, pkgid, target_path.clone()))
-    } else {
-        if is_verbose {
-            write_msg("Clean", pkgid);
-        }
-        try!(clean(matches, pkgid));
+            try!(find_tests(matches, pkgid, target_path.clone()))
+        } else {
+            if is_verbose {
+                write_msg("Clean", pkgid.unwrap_or("all"));
+            }
+            try!(clean(matches, pkgid));
 
-        if is_verbose {
-            write_msg("Build", "test executables");
-        }
-        try!(build_test(matches))
-    };
+            if is_verbose {
+                write_msg("Build", "test executables");
+            }
+            try!(build_test(matches))
+        };
 
     if is_verbose {
         write_msg("Coverage", &format!("found the following executables: {:?}", tests));
@@ -272,12 +277,15 @@ fn create_cov_path(matches: &ArgMatches, mut target_path: PathBuf) -> Result<Pat
     }
 }
 
-fn clean(matches: &ArgMatches, pkg: &str) -> Result<(), Error> {
-    try!(cargo("clean")
-        .args(&["--package", pkg])
-        .forward(matches, &["--manifest-path", "--target", "--release"])
-        .output()
-    );
+fn clean(matches: &ArgMatches, pkg: Option<&str>) -> Result<(), Error> {
+    let mut cmd = cargo("clean");
+
+    if let Some(pkg) = pkg {
+        cmd = cmd.args(&["--package", pkg]);
+    }
+
+    try!(cmd.forward(matches, &["--manifest-path", "--target", "--release"]).output());
+
     Ok(())
 }
 
@@ -288,7 +296,7 @@ fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
         .forward(matches, &[
             "--lib", "--bin", "--example", "--test", "--bench",
             "--jobs", "--release", "--target", "--manifest-path",
-            "--features", "--no-default-features", "--no-fail-fast",
+            "--features", "--no-default-features", "--no-fail-fast", "--all"
         ])
         .output());
 
@@ -314,13 +322,13 @@ fn open_coverage_report(output_path: &Path) {
 //-------------------------------------------------------------------------------------------------
 
 /// Find all test executables using `read_dir` without clean-rebuild.
-fn find_tests(matches: &ArgMatches, pkgid: &str, path: PathBuf) -> Result<Vec<PathBuf>, Error> {
+fn find_tests(matches: &ArgMatches, pkgid: Option<&str>, path: PathBuf) -> Result<Vec<PathBuf>, Error> {
     let (path, file_name_filters) = get_args_for_find_test_targets(matches, pkgid, path);
     find_test_targets(&path, file_name_filters)
 }
 
 fn get_args_for_find_test_targets<'a>(matches: &'a ArgMatches,
-                                      pkgid: &'a str,
+                                      pkgid: Option<&'a str>,
                                       mut path: PathBuf) -> (PathBuf, HashSet<Cow<'a, str>>) {
     if let Some(target) = matches.value_of_os("target") {
         path.push(target);
@@ -328,9 +336,13 @@ fn get_args_for_find_test_targets<'a>(matches: &'a ArgMatches,
     path.push(if matches.is_present("release") { "release" } else { "debug" });
 
     let mut file_name_filters = HashSet::new();
-    if matches.is_present("lib") {
-        file_name_filters.insert(find_package_name_from_pkgid(pkgid));
+
+    if let Some(pkgid) = pkgid {
+        if matches.is_present("lib") {
+            file_name_filters.insert(find_package_name_from_pkgid(pkgid));
+        }
     }
+
     extend_file_name_filters(&mut file_name_filters, matches, "bin");
     extend_file_name_filters(&mut file_name_filters, matches, "example");
     extend_file_name_filters(&mut file_name_filters, matches, "test");
