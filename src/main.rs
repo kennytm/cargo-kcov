@@ -368,7 +368,7 @@ fn test_get_args_for_find_test_targets() {
     let mut do_test = |args: &[&'static str], expected_path, expected_filters: &[&'static str]| {
         let matches = app.get_matches_from_safe_borrow(args).unwrap();
         let matches = matches.subcommand_matches("kcov").unwrap();
-        let args = get_args_for_find_test_targets(&matches, pkgid, path.to_path_buf());
+        let args = get_args_for_find_test_targets(&matches, Some(pkgid), path.to_path_buf());
         assert_eq!(args.0, expected_path);
         assert_eq!(args.1, expected_filters.iter().map(|x| Cow::Borrowed(*x)).collect());
     };
