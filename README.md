@@ -33,7 +33,7 @@ shipping v25 or v11, so you will need to build from source.
 Please follow the instruction in <https://users.rust-lang.org/t/650>. **`cargo-kcov` requires v30 or
 above** since earlier versions of kcov do not report its version number.
 
-cargo-kcov requires Rust 1.14.0 or above (to use the `--message-format` flag for cargo).
+cargo-kcov requires Rust 1.16.0 or above (to use the `--message-format` flag for cargo and `--all` flag for cargo test).
 
 Install
 -------
@@ -69,6 +69,7 @@ Options
             --kcov <PATH>              Path to the kcov executable
         -o, --output <PATH>            Output directory, default to [target/cov]
         -v, --verbose                  Use verbose output
+            --all                      In a workspace, test all members
             --open                     Open the coverage report on finish
             --coveralls                Upload merged coverage data to coveralls.io from Travis CI
             --no-clean-rebuild         Do not perform a clean rebuild before collecting coverage. This
