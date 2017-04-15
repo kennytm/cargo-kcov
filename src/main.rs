@@ -138,18 +138,18 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     };
 
     let tests = if matches.is_present("no-clean-rebuild") {
-            try!(find_tests(matches, pkgid, target_path.clone()))
-        } else {
-            if is_verbose {
-                write_msg("Clean", pkgid.unwrap_or("all"));
-            }
-            try!(clean(matches, pkgid));
+        try!(find_tests(matches, pkgid, target_path.clone()))
+    } else {
+        if is_verbose {
+            write_msg("Clean", pkgid.unwrap_or("all"));
+        }
+        try!(clean(matches, pkgid));
 
-            if is_verbose {
-                write_msg("Build", "test executables");
-            }
-            try!(build_test(matches))
-        };
+        if is_verbose {
+            write_msg("Build", "test executables");
+        }
+        try!(build_test(matches))
+    };
 
     if is_verbose {
         write_msg("Coverage", &format!("found the following executables: {:?}", tests));
