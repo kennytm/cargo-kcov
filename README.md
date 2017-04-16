@@ -33,7 +33,8 @@ shipping v25 or v11, so you will need to build from source.
 Please follow the instruction in <https://users.rust-lang.org/t/650>. **`cargo-kcov` requires v30 or
 above** since earlier versions of kcov do not report its version number.
 
-cargo-kcov requires Rust 1.16.0 or above (to use the `--message-format` flag for cargo and `--all` flag for cargo test).
+cargo-kcov requires Rust 1.16.0 or above (to use the `--message-format` flag for cargo and `--all`
+flag for cargo test).
 
 Install
 -------
@@ -73,17 +74,17 @@ Options
             --open                     Open the coverage report on finish
             --coveralls                Upload merged coverage data to coveralls.io from Travis CI
             --no-clean-rebuild         Do not perform a clean rebuild before collecting coverage. This
-                                    improves performance when the test case was already built for
-                                    coverage, but may cause wrong coverage statistics if used
-                                    incorrectly. If you use this option, make sure the `target/`
-                                    folder is used exclusively by one rustc/cargo version only, and
-                                    the test cases are built with `RUSTFLAGS="-C link-dead-code"
-                                    cargo test`.
+                                       improves performance when the test case was already built for
+                                       coverage, but may cause wrong coverage statistics if used
+                                       incorrectly. If you use this option, make sure the `target/`
+                                       folder is used exclusively by one rustc/cargo version only, and
+                                       the test cases are built with `RUSTFLAGS="-C link-dead-code"
+                                       cargo test`.
             --print-install-kcov-sh    Prints the sh code that installs kcov to `~/.cargo/bin`. Note
-                                    that this will *not* install dependencies required by kcov.
+                                       that this will *not* install dependencies required by kcov.
         -h, --help                     Prints help information
         -V, --version                  Prints version information
 
     ARGS:
         <KCOV-ARGS>...    Further arguments passed to kcov. If empty, the default arguments
-                        `--verify --exclude-pattern=$CARGO_HOME` will be passed to kcov.
+                          `--verify --exclude-pattern=$CARGO_HOME` will be passed to kcov.
