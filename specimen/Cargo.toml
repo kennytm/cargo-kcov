@@ -5,3 +5,5 @@ authors = ["kennytm <kennytm@gmail.com>"]
 build = "build.rs"
 publish = false
 
+[workspace]
+members = [".", "inner"]
