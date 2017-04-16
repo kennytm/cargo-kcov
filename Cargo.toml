@@ -14,7 +14,7 @@ travis-ci = { repository = "kennytm/cargo-kcov" }
 clap = "2.23"
 shlex = "0.1"
 term = "0.4"
-rustc-serialize = "0.3" # use serde instead? we just use it to parse a simple JSON...
+serde_json = "0.9"
 regex = "0.2"
 open = "1.2"
 

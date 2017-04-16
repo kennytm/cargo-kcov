@@ -20,7 +20,7 @@
 #[macro_use] extern crate clap;
 extern crate shlex;
 extern crate term;
-extern crate rustc_serialize;
+extern crate serde_json;
 extern crate regex;
 extern crate open;
 #[cfg(test)] extern crate tempdir;
@@ -45,7 +45,6 @@ use cargo::{cargo, Cmd};
 use target_finder::*;
 use term::color::{GREEN, YELLOW};
 use term::Attr;
-use rustc_serialize::json::Json;
 
 fn main() {
     let matches = create_arg_parser().get_matches();
@@ -243,11 +242,13 @@ fn get_coveralls_option(matches: &ArgMatches) -> Result<Option<OsString>, Error>
 
 
 fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
+    use serde_json::{from_str, Value};
+
     let (json, _) = cargo("locate-project")
         .forward(matches, &["--manifest-path"])
         .output()?;
-    let json = Json::from_str(&json)?;
-    match json.find("root").and_then(|j| j.as_string()) {
+    let json = from_str::<Value>(&json)?;
+    match json["root"].as_str() {
         None => Err(Error::Json(None)),
         Some(p) => {
             let mut root = PathBuf::from(p);

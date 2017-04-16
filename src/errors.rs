@@ -8,7 +8,7 @@ use std::str::Utf8Error;
 
 use term::color::{YELLOW, GREEN, RED, WHITE};
 use term::Attr;
-use rustc_serialize::json::BuilderError;
+use serde_json;
 
 use stderr;
 
@@ -19,7 +19,7 @@ pub enum Error {
     KcovNotInstalled(io::Error),
     CannotRunCargo(io::Error),
     Utf8(Utf8Error),
-    Json(Option<BuilderError>),
+    Json(Option<serde_json::Error>),
     CannotCreateCoverageDirectory(io::Error),
     Cargo {
         subcommand: &'static str,
@@ -69,8 +69,8 @@ impl From<FromUtf8Error> for Error {
     }
 }
 
-impl From<BuilderError> for Error {
-    fn from(e: BuilderError) -> Self {
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Self {
         Error::Json(Some(e))
     }
 }
