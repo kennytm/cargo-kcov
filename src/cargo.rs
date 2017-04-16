@@ -104,8 +104,8 @@ impl Cmd {
             });
         }
 
-        let stdout = try!(String::from_utf8(output.stdout));
-        let stderr = try!(String::from_utf8(output.stderr));
+        let stdout = String::from_utf8(output.stdout)?;
+        let stderr = String::from_utf8(output.stderr)?;
         Ok((stdout, stderr))
     }
 

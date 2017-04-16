@@ -124,11 +124,11 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     }
 
     let is_verbose = matches.is_present("verbose");
-    let kcov_path = try!(check_kcov(matches));
+    let kcov_path = check_kcov(matches)?;
 
-    let coveralls_option = try!(get_coveralls_option(matches));
-    let target_path = try!(find_target_path(matches));
-    let full_pkgid = try!(get_pkgid(matches));
+    let coveralls_option = get_coveralls_option(matches)?;
+    let target_path = find_target_path(matches)?;
+    let full_pkgid = get_pkgid(matches)?;
 
     let pkgid = if matches.is_present("all") {
         None
@@ -138,24 +138,24 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     };
 
     let tests = if matches.is_present("no-clean-rebuild") {
-        try!(find_tests(matches, pkgid, target_path.clone()))
+        find_tests(matches, pkgid, target_path.clone())?
     } else {
         if is_verbose {
             write_msg("Clean", pkgid.unwrap_or("all"));
         }
-        try!(clean(matches, pkgid));
+        clean(matches, pkgid)?;
 
         if is_verbose {
             write_msg("Build", "test executables");
         }
-        try!(build_test(matches))
+        build_test(matches)?
     };
 
     if is_verbose {
         write_msg("Coverage", &format!("found the following executables: {:?}", tests));
     }
 
-    let cov_path = try!(create_cov_path(matches, target_path));
+    let cov_path = create_cov_path(matches, target_path)?;
     let kcov_args = match matches.values_of_os("KCOV-ARGS") {
         Some(a) => a.map(|s| s.to_owned()).collect(),
         None => {
@@ -176,7 +176,7 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         if is_verbose {
             write_msg("Running", &cmd.to_string());
         }
-        try!(cmd.run_kcov());
+        cmd.run_kcov()?;
         merge_cov_paths.push(pre_cov_path);
     }
 
@@ -188,7 +188,7 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     if is_verbose {
         write_msg("Running", &merge_cmd.to_string());
     }
-    try!(merge_cmd.run_kcov());
+    merge_cmd.run_kcov()?;
 
     if matches.is_present("open") {
         open_coverage_report(&cov_path);
@@ -220,10 +220,9 @@ fn check_kcov<'a>(matches: &'a ArgMatches<'a>) -> Result<&'a OsStr, Error> {
 }
 
 fn get_pkgid(matches: &ArgMatches) -> Result<String, Error> {
-    let (output, _) = try!(cargo("pkgid")
+    let (output, _) = cargo("pkgid")
         .forward(matches, &["--manifest-path"])
-        .output()
-    );
+        .output()?;
     Ok(output)
 }
 
@@ -244,11 +243,10 @@ fn get_coveralls_option(matches: &ArgMatches) -> Result<Option<OsString>, Error>
 
 
 fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
-    let (json, _) = try!(cargo("locate-project")
+    let (json, _) = cargo("locate-project")
         .forward(matches, &["--manifest-path"])
-        .output()
-    );
-    let json = try!(Json::from_str(&json));
+        .output()?;
+    let json = Json::from_str(&json)?;
     match json.find("root").and_then(|j| j.as_string()) {
         None => Err(Error::Json(None)),
         Some(p) => {
@@ -284,13 +282,13 @@ fn clean(matches: &ArgMatches, pkg: Option<&str>) -> Result<(), Error> {
         cmd = cmd.args(&["--package", pkg]);
     }
 
-    try!(cmd.forward(matches, &["--manifest-path", "--target", "--release"]).output());
+    cmd.forward(matches, &["--manifest-path", "--target", "--release"]).output()?;
 
     Ok(())
 }
 
 fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
-    let (output, error) = try!(cargo("test")
+    let (output, error) = cargo("test")
         .args(&["--no-run", "-v"])
         .env("RUSTFLAGS", " ", "-C link-dead-code")
         .forward(matches, &[
@@ -298,7 +296,7 @@ fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
             "--jobs", "--release", "--target", "--manifest-path",
             "--features", "--no-default-features", "--no-fail-fast", "--all"
         ])
-        .output());
+        .output()?;
 
     let mut targets = Vec::new();
     parse_rustc_command_lines_into(&mut targets, &error);

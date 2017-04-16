@@ -161,9 +161,9 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
     let result = (|| {
         let mut result = Vec::new();
 
-        for entry in try!(target_folder.read_dir()) {
-            let entry = try!(entry);
-            let metadata = try!(entry.metadata());
+        for entry in target_folder.read_dir()? {
+            let entry = entry?;
+            let metadata = entry.metadata()?;
             let path = entry.path();
             if !(metadata.is_file() && can_execute(&path, &metadata)) {
                 continue;
