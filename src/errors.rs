@@ -50,13 +50,13 @@ impl Error {
 
     fn cause(&self) -> Option<&Display> {
         match *self {
-            Error::KcovNotInstalled(ref e) => Some(e),
-            Error::CannotRunCargo(ref e) => Some(e),
+            Error::KcovNotInstalled(ref e) |
+            Error::CannotRunCargo(ref e) |
+            Error::CannotCreateCoverageDirectory(ref e) |
+            Error::KcovFailed(Err(ref e)) => Some(e),
             Error::Utf8(ref e) => Some(e),
             Error::Json(ref e) => e.as_ref().map(|a| a as &Display),
-            Error::CannotCreateCoverageDirectory(ref e) => Some(e),
             Error::KcovFailed(Ok(ref e)) => Some(e),
-            Error::KcovFailed(Err(ref e)) => Some(e),
             Error::CannotFindTestTargets(ref e) => e.as_ref().map(|a| a as &Display),
             _ => None,
         }

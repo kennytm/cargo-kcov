@@ -156,6 +156,8 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
         RegexSet::new(filter.map(|f| format!("^{}-[0-9a-f]{{16}}$", escape(f.as_ref()))))
     }.unwrap();
 
+    // lint suppressed: https://github.com/Manishearth/rust-clippy/issues/1684
+    #[allow(redundant_closure_call)]
     let result = (|| {
         let mut result = Vec::new();
 
