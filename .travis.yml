@@ -1,5 +1,6 @@
+dist: trusty
 language: rust
-sudo: false
+sudo: true
 
 addons:
     apt:
@@ -8,16 +9,17 @@ addons:
             - libelf-dev
             - libdw-dev
             - binutils-dev
-            #- libiberty-dev # <- no such thing in Ubuntu 12.04
+            - libiberty-dev
             - g++
+            - gdb
 
 os:
     - linux
 #   - osx
 
 rust:
-    - 1.11.0
-    - 1.14.0
+    - 1.16.0
+    - beta
     - nightly
 
 env:
@@ -29,18 +31,8 @@ env:
 
 install:
     # 1. Install kcov v33.
-    - export KCOV_VERSION=33
     - mkdir -p ~/.cargo/bin
-    - |
-        wget https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz &&
-        tar xzf v${KCOV_VERSION}.tar.gz &&
-        cd kcov-${KCOV_VERSION} &&
-        mkdir build &&
-        cd build &&
-        cmake .. &&
-        make &&
-        cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin &&
-        cd ../..
+    - sh src/install_kcov.sh
     - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
     - export RUSTFLAGS="-C link-dead-code"
     - kcov --version
@@ -48,19 +40,20 @@ install:
     # 2. Install rustup.
     - if [ "$TRAVIS_OS_NAME" = 'linux' ]; then OS=unknown-linux-gnu; else OS=apple-darwin; fi
     - export HOST=$ARCH-$OS
-    - curl -SfLO "https://static.rust-lang.org/rustup/dist/$HOST/rustup-init"
-    - chmod u+x rustup-init
-    - ./rustup-init -y --default-host "$HOST" --default-toolchain "$TRAVIS_RUST_VERSION"
+    # - curl -SfLO "https://static.rust-lang.org/rustup/dist/$HOST/rustup-init"
+    # - chmod u+x rustup-init
+    # - ./rustup-init -y --default-host "$HOST" --default-toolchain "$TRAVIS_RUST_VERSION"
     - export PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH
     - rustc -vV
     - cargo -vV
+
+before_script:
+    ulimit -c unlimited -S
 
 script:
     - cargo build
     - cargo test
 
-after_success:
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
     # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
-    - cargo run -- kcov --no-clean-rebuild --lib --coveralls
-
+    - cargo run -- kcov --verbose --no-clean-rebuild --lib --coveralls

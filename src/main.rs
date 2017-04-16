@@ -22,6 +22,7 @@ extern crate shlex;
 extern crate term;
 extern crate rustc_serialize;
 extern crate regex;
+extern crate open;
 #[cfg(test)] extern crate tempdir;
 
 mod stderr;
@@ -31,7 +32,7 @@ mod target_finder;
 
 use std::process::Command;
 use std::fs::{remove_dir_all, create_dir_all};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ffi::{OsStr, OsString};
 use std::env::var_os;
 use std::collections::HashSet;
@@ -42,7 +43,7 @@ use clap::{App, Arg, ArgMatches, AppSettings, SubCommand};
 use errors::Error;
 use cargo::{cargo, Cmd};
 use target_finder::*;
-use term::color::GREEN;
+use term::color::{GREEN, YELLOW};
 use term::Attr;
 use rustc_serialize::json::Json;
 
@@ -50,7 +51,7 @@ fn main() {
     let matches = create_arg_parser().get_matches();
     let matches = matches.subcommand_matches("kcov").expect("Expecting subcommand `kcov`.");
 
-    match run(&matches) {
+    match run(matches) {
         Ok(_) => {},
         Err(e) => e.print_error_and_quit(),
     }
@@ -83,6 +84,8 @@ fn create_arg_parser() -> App<'static, 'static> {
                 --kcov [PATH]           'Path to the kcov executable'
                 -o, --output [PATH]     'Output directory, default to [target/cov]'
                 -v, --verbose           'Use verbose output'
+                --all                   'In a workspace, test all members'
+                --open                  'Open the coverage report on finish'
                 --coveralls             'Upload merged coverage data to coveralls.io from Travis CI'
                 --no-clean-rebuild      'Do not perform a clean rebuild before collecting coverage. \
                                          This improves performance when the test case was already \
@@ -95,7 +98,7 @@ fn create_arg_parser() -> App<'static, 'static> {
                                          Note that this will *not* install dependencies required by \
                                          kcov.'
                 [KCOV-ARGS]...          'Further arguments passed to kcov. If empty, the default \
-                                         arguments `--verify --exclude-pattern=/.cargo` will be \
+                                         arguments `--verify --exclude-pattern=$CARGO_HOME` will be \
                                          passed to kcov.'
             ")
         )
@@ -124,26 +127,29 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
     let kcov_path = try!(check_kcov(matches));
 
     let coveralls_option = try!(get_coveralls_option(matches));
-
-    let full_pkgid = try!(get_pkgid(matches));
-    let pkgid = full_pkgid.trim_right();
-
     let target_path = try!(find_target_path(matches));
+    let full_pkgid = try!(get_pkgid(matches));
 
-    let tests;
-    if matches.is_present("no-clean-rebuild") {
-        tests = try!(find_tests(matches, pkgid, target_path.clone()));
+    let pkgid = if matches.is_present("all") {
+        None
+    } else {
+        full_pkgid.trim_right();
+        Some(full_pkgid.as_ref())
+    };
+
+    let tests = if matches.is_present("no-clean-rebuild") {
+        try!(find_tests(matches, pkgid, target_path.clone()))
     } else {
         if is_verbose {
-            write_msg("Clean", pkgid);
+            write_msg("Clean", pkgid.unwrap_or("all"));
         }
         try!(clean(matches, pkgid));
 
         if is_verbose {
             write_msg("Build", "test executables");
         }
-        tests = try!(build_test(matches));
-    }
+        try!(build_test(matches))
+    };
 
     if is_verbose {
         write_msg("Coverage", &format!("found the following executables: {:?}", tests));
@@ -151,11 +157,12 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
 
     let cov_path = try!(create_cov_path(matches, target_path));
     let kcov_args = match matches.values_of_os("KCOV-ARGS") {
-        Some(a) => a.collect(),
-        None => vec![
-            OsStr::new("--exclude-pattern=/.cargo"),
-            OsStr::new("--verify"),
-        ],
+        Some(a) => a.map(|s| s.to_owned()).collect(),
+        None => {
+            let mut exclude_pattern = OsString::from("--exclude-pattern=");
+            exclude_pattern.push(var_os("CARGO_HOME").as_ref().map_or(OsStr::new("/.cargo"), |s| s));
+            vec![exclude_pattern, OsString::from("--verify")]
+        },
     };
 
     let mut merge_cov_paths = Vec::with_capacity(tests.len());
@@ -173,7 +180,7 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         merge_cov_paths.push(pre_cov_path);
     }
 
-    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&kcov_args).args(&[cov_path]);
+    let mut merge_cmd = Cmd::new(&kcov_path, "--merge").args(&kcov_args).args(&[&cov_path]);
     if let Some(opt) = coveralls_option {
         merge_cmd = merge_cmd.args(&[opt]);
     }
@@ -182,6 +189,10 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         write_msg("Running", &merge_cmd.to_string());
     }
     try!(merge_cmd.run_kcov());
+
+    if matches.is_present("open") {
+        open_coverage_report(&cov_path);
+    }
 
     Ok(())
 }
@@ -196,7 +207,7 @@ fn write_msg(title: &str, msg: &str) {
 }
 
 fn check_kcov<'a>(matches: &'a ArgMatches<'a>) -> Result<&'a OsStr, Error> {
-    let program = matches.value_of_os("kcov").unwrap_or(OsStr::new("kcov"));
+    let program = matches.value_of_os("kcov").unwrap_or_else(|| OsStr::new("kcov"));
     let output = match Command::new(program).arg("--version").output() {
         Ok(o) => o,
         Err(e) => return Err(Error::KcovNotInstalled(e)),
@@ -239,7 +250,7 @@ fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
     );
     let json = try!(Json::from_str(&json));
     match json.find("root").and_then(|j| j.as_string()) {
-        None => return Err(Error::Json(None)),
+        None => Err(Error::Json(None)),
         Some(p) => {
             let mut root = PathBuf::from(p);
             root.pop();
@@ -266,12 +277,15 @@ fn create_cov_path(matches: &ArgMatches, mut target_path: PathBuf) -> Result<Pat
     }
 }
 
-fn clean(matches: &ArgMatches, pkg: &str) -> Result<(), Error> {
-    try!(cargo("clean")
-        .args(&["--package", pkg])
-        .forward(matches, &["--manifest-path", "--target", "--release"])
-        .output()
-    );
+fn clean(matches: &ArgMatches, pkg: Option<&str>) -> Result<(), Error> {
+    let mut cmd = cargo("clean");
+
+    if let Some(pkg) = pkg {
+        cmd = cmd.args(&["--package", pkg]);
+    }
+
+    try!(cmd.forward(matches, &["--manifest-path", "--target", "--release"]).output());
+
     Ok(())
 }
 
@@ -282,7 +296,7 @@ fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
         .forward(matches, &[
             "--lib", "--bin", "--example", "--test", "--bench",
             "--jobs", "--release", "--target", "--manifest-path",
-            "--features", "--no-default-features", "--no-fail-fast",
+            "--features", "--no-default-features", "--no-fail-fast", "--all"
         ])
         .output());
 
@@ -292,17 +306,29 @@ fn build_test(matches: &ArgMatches) -> Result<Vec<PathBuf>, Error> {
     Ok(targets)
 }
 
+fn open_coverage_report(output_path: &Path) {
+    let index_path = output_path.join("index.html");
+    write_msg("Opening", &index_path.to_string_lossy());
+    if let Err(e) = open::that(index_path) {
+        let mut t = stderr::new();
+        t.fg(YELLOW).unwrap();
+        t.attr(Attr::Bold).unwrap();
+        write!(t, "warning").unwrap();
+        t.reset().unwrap();
+        writeln!(t, ": cannot open coverage report, {}", e).unwrap();
+    }
+}
 
 //-------------------------------------------------------------------------------------------------
 
 /// Find all test executables using `read_dir` without clean-rebuild.
-fn find_tests(matches: &ArgMatches, pkgid: &str, path: PathBuf) -> Result<Vec<PathBuf>, Error> {
+fn find_tests(matches: &ArgMatches, pkgid: Option<&str>, path: PathBuf) -> Result<Vec<PathBuf>, Error> {
     let (path, file_name_filters) = get_args_for_find_test_targets(matches, pkgid, path);
     find_test_targets(&path, file_name_filters)
 }
 
 fn get_args_for_find_test_targets<'a>(matches: &'a ArgMatches,
-                                      pkgid: &'a str,
+                                      pkgid: Option<&'a str>,
                                       mut path: PathBuf) -> (PathBuf, HashSet<Cow<'a, str>>) {
     if let Some(target) = matches.value_of_os("target") {
         path.push(target);
@@ -310,9 +336,13 @@ fn get_args_for_find_test_targets<'a>(matches: &'a ArgMatches,
     path.push(if matches.is_present("release") { "release" } else { "debug" });
 
     let mut file_name_filters = HashSet::new();
-    if matches.is_present("lib") {
-        file_name_filters.insert(find_package_name_from_pkgid(pkgid));
+
+    if let Some(pkgid) = pkgid {
+        if matches.is_present("lib") {
+            file_name_filters.insert(find_package_name_from_pkgid(pkgid));
+        }
     }
+
     extend_file_name_filters(&mut file_name_filters, matches, "bin");
     extend_file_name_filters(&mut file_name_filters, matches, "example");
     extend_file_name_filters(&mut file_name_filters, matches, "test");
@@ -338,7 +368,7 @@ fn test_get_args_for_find_test_targets() {
     let mut do_test = |args: &[&'static str], expected_path, expected_filters: &[&'static str]| {
         let matches = app.get_matches_from_safe_borrow(args).unwrap();
         let matches = matches.subcommand_matches("kcov").unwrap();
-        let args = get_args_for_find_test_targets(&matches, pkgid, path.to_path_buf());
+        let args = get_args_for_find_test_targets(&matches, Some(pkgid), path.to_path_buf());
         assert_eq!(args.0, expected_path);
         assert_eq!(args.1, expected_filters.iter().map(|x| Cow::Borrowed(*x)).collect());
     };

@@ -11,7 +11,7 @@ tar xzf v${KCOV_VERSION}.tar.gz
 cd kcov-${KCOV_VERSION}
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make
 cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin
 

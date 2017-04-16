@@ -26,7 +26,7 @@ pub enum Error {
         status: ExitStatus,
         stderr: Vec<u8>,
     },
-    KcovFailed(Option<io::Error>),
+    KcovFailed(io::Result<ExitStatus>),
     NoCoverallsId,
     CannotFindTestTargets(Option<io::Error>),
 }
@@ -55,7 +55,8 @@ impl Error {
             Error::Utf8(ref e) => Some(e),
             Error::Json(ref e) => e.as_ref().map(|a| a as &Display),
             Error::CannotCreateCoverageDirectory(ref e) => Some(e),
-            Error::KcovFailed(ref e) => e.as_ref().map(|a| a as &Display),
+            Error::KcovFailed(Ok(ref e)) => Some(e),
+            Error::KcovFailed(Err(ref e)) => Some(e),
             Error::CannotFindTestTargets(ref e) => e.as_ref().map(|a| a as &Display),
             _ => None,
         }
@@ -86,7 +87,7 @@ impl Error {
         t.reset().unwrap();
         writeln!(t, "{}", self.description()).unwrap();
 
-        if let Error::Cargo { ref subcommand, ref status, ref stderr } = *self {
+        if let Error::Cargo { subcommand, ref status, ref stderr } = *self {
             t.fg(YELLOW).unwrap();
             t.attr(Attr::Bold).unwrap();
             t.write_all(b"note: ").unwrap();

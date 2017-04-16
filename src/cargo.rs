@@ -30,7 +30,7 @@ fn parse_arg_type(option: &str) -> Option<ArgType> {
     match option {
         "--manifest-path" | "--target" | "--jobs" | "--features" | "--coveralls" =>
             Some(ArgType::Single),
-        "--release" | "--lib" | "--no-default-features" | "--no-fail-fast" =>
+        "--release" | "--lib" | "--no-default-features" | "--no-fail-fast" | "--all" =>
             Some(ArgType::Flag),
         "--bin" | "--example" | "--test" | "--bench" =>
             Some(ArgType::Multiple),
@@ -111,9 +111,8 @@ impl Cmd {
 
     pub fn run_kcov(mut self) -> Result<(), Error> {
         match self.cmd.status() {
-            Ok(s) if s.success() => Ok(()),
-            Ok(_) => Err(Error::KcovFailed(None)),
-            Err(e) => Err(Error::KcovFailed(Some(e))),
+            Ok(ref s) if s.success() => Ok(()),
+            s => Err(Error::KcovFailed(s)),
         }
     }
 }
