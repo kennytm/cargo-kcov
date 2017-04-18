@@ -127,14 +127,16 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
 
     let coveralls_option = get_coveralls_option(matches)?;
     let target_path = find_target_path(matches)?;
-    let full_pkgid = get_pkgid(matches)?;
 
     let pkgid = if matches.is_present("all") {
         None
     } else {
+        let full_pkgid = get_pkgid(matches)?;
         full_pkgid.trim_right();
-        Some(full_pkgid.as_ref())
+        Some(full_pkgid)
     };
+
+    let pkgid: Option<&str> = pkgid.as_ref().map(|id| &**id);
 
     let tests = if matches.is_present("no-clean-rebuild") {
         find_tests(matches, pkgid, target_path.clone())?
