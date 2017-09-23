@@ -1,6 +1,6 @@
 [package]
 name = "cargo-kcov"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["kennytm <kennytm@gmail.com>"]
 description = "Cargo subcommand to run kcov to get coverage report on Linux"
 repository = "https://github.com/kennytm/cargo-kcov"
@@ -11,12 +11,12 @@ license = "MIT"
 travis-ci = { repository = "kennytm/cargo-kcov" }
 
 [dependencies]
-clap = "2.23"
+clap = "2.26"
 shlex = "0.1"
 term = "0.4"
-serde_json = "0.9"
+serde_json = "1"
 regex = "0.2"
-open = "1.2"
+open = "1"
 
 [dev-dependencies]
 rquery = "0.3"

@@ -2,7 +2,7 @@
 
 set -eu
 
-KCOV_VERSION=33
+KCOV_VERSION=34
 
 rm -rf v${KCOV_VERSION}.tar.gz kcov-${KCOV_VERSION}/
 

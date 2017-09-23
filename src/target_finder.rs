@@ -157,7 +157,7 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
     }.unwrap();
 
     // lint suppressed: https://github.com/Manishearth/rust-clippy/issues/1684
-    #[allow(redundant_closure_call)]
+    #[cfg_attr(feature = "cargo-clippy", allow(redundant_closure_call))]
     let result = (|| {
         let mut result = Vec::new();
 
