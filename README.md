@@ -33,8 +33,7 @@ shipping v25 or v11, so you will need to build from source.
 Please follow the instruction in <https://users.rust-lang.org/t/650>. **`cargo-kcov` requires v30 or
 above** since earlier versions of kcov do not report its version number.
 
-cargo-kcov requires Rust 1.16.0 or above (to use the `--message-format` flag for cargo and `--all`
-flag for cargo test).
+cargo-kcov requires Rust 1.16.0 or above (to use `--all` flag for cargo test).
 
 Install
 -------
