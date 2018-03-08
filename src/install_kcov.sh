@@ -13,5 +13,5 @@ mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make
-cp src/kcov src/libkcov_sowrapper.so ~/.cargo/bin
+cp src/kcov src/libkcov_sowrapper.so "${CARGO_HOME:-$HOME/.cargo}/bin"
 
