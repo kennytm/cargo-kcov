@@ -4,10 +4,9 @@ set -eu
 
 KCOV_VERSION=34
 
-rm -rf v${KCOV_VERSION}.tar.gz kcov-${KCOV_VERSION}/
+rm -rf kcov-${KCOV_VERSION}/
 
-wget https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz
-tar xzf v${KCOV_VERSION}.tar.gz
+wget https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz -O - | tar xz
 cd kcov-${KCOV_VERSION}
 mkdir build
 cd build
