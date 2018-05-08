@@ -2,7 +2,7 @@
 
 set -eu
 
-KCOV_DEFAULT_VERSION="v34"
+KCOV_DEFAULT_VERSION="v35"
 GITHUB_KCOV="https://api.github.com/repos/SimonKagstrom/kcov/releases/latest"
 KCOV_VERSION=
 

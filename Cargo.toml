@@ -11,14 +11,14 @@ license = "MIT"
 travis-ci = { repository = "kennytm/cargo-kcov" }
 
 [dependencies]
-clap = "2.26"
+clap = "2"
 shlex = "0.1"
-term = "0.4"
+term = "0.5"
 serde_json = "1"
-regex = "0.2"
+regex = "1"
 open = "1"
 
 [dev-dependencies]
-rquery = "0.3"
+rquery = "0.4"
 tempdir = "0.3"
 
