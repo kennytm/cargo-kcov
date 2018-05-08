@@ -54,4 +54,7 @@ script:
 
     # Note: we skip the `check-specimen` test in coverage because kcov cannot do recursive-ptrace.
     # Track this file: https://github.com/SimonKagstrom/kcov/blob/master/tests/recursive-ptrace/main.cc
-    - cargo run -- kcov --verbose --no-clean-rebuild --lib --coveralls
+    #
+    # Note: disable covering macOS, otherwise we will timeout.
+    # see https://travis-ci.org/kennytm/cargo-kcov/jobs/376598886
+    - if [ $TRAVIS_OS_NAME = linux ]; then cargo run -- kcov --verbose --no-clean-rebuild --lib --coveralls; fi

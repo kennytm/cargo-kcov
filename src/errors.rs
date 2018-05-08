@@ -34,7 +34,7 @@ pub enum Error {
 impl Error {
     fn description(&self) -> &str {
         match *self {
-            Error::UnsupportedOS => "kcov cannot collect coverage on Windows or OS X.",
+            Error::UnsupportedOS => "kcov cannot collect coverage on Windows.",
             Error::KcovTooOld => "kcov is too old. v30 or above is required.",
             Error::KcovNotInstalled(_) => "kcov not installed.",
             Error::CannotRunCargo(_) => "cannot run cargo",
@@ -116,15 +116,23 @@ impl Error {
                 t.reset().unwrap();
                 t.write_all(b" to install kcov:\n\n").unwrap();
 
-                t.fg(WHITE).unwrap();
-                t.write_all(b"    $ ").unwrap();
-                t.reset().unwrap();
-                writeln!(t, "sudo apt-get install cmake g++ pkg-config\n").unwrap();
+                #[cfg(target_os = "linux")] {
+                    t.fg(WHITE).unwrap();
+                    t.write_all(b"    $ ").unwrap();
+                    t.reset().unwrap();
+                    writeln!(t, "sudo apt-get install cmake g++ pkg-config jq\n").unwrap();
 
-                t.fg(WHITE).unwrap();
-                t.write_all(b"    $ ").unwrap();
-                t.reset().unwrap();
-                writeln!(t, "sudo apt-get install libcurl4-openssl-dev libdw-dev binutils-dev libiberty-dev\n").unwrap();
+                    t.fg(WHITE).unwrap();
+                    t.write_all(b"    $ ").unwrap();
+                    t.reset().unwrap();
+                    writeln!(t, "sudo apt-get install libcurl4-openssl-dev libelf-dev libdw-dev binutils-dev libiberty-dev\n").unwrap();
+                }
+                #[cfg(target_os = "macos")] {
+                    t.fg(WHITE).unwrap();
+                    t.write_all(b"    $ ").unwrap();
+                    t.reset().unwrap();
+                    writeln!(t, "brew install cmake jq\n").unwrap();
+                }
 
                 t.fg(WHITE).unwrap();
                 t.write_all(b"    $ ").unwrap();

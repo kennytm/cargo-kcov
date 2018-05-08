@@ -2,3 +2,4 @@ target
 .DS_Store
 *.swp
 *.swo
+kcov-v*/

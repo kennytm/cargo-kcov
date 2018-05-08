@@ -113,7 +113,7 @@ fn filtering_arg<'a, 'b>(name: &'a str, help: &'b str) -> Arg<'a, 'b> {
 }
 
 fn run(matches: &ArgMatches) -> Result<(), Error> {
-    if cfg!(any(target_os="windows", target_os="macos", target_os="ios")) {
+    if cfg!(any(target_os="windows")) {
         return Err(Error::UnsupportedOS);
     }
 
@@ -162,7 +162,15 @@ fn run(matches: &ArgMatches) -> Result<(), Error> {
         None => {
             let mut exclude_pattern = OsString::from("--exclude-pattern=");
             exclude_pattern.push(var_os("CARGO_HOME").as_ref().map_or(OsStr::new("/.cargo"), |s| s));
-            vec![exclude_pattern, OsString::from("--verify")]
+            vec![
+                exclude_pattern,
+                OsString::from(if cfg!(target_os = "macos") {
+                    // Exclude the standard library symbols, otherwise kcov will take forever to run.
+                    "--exclude-pattern=/Users/travis/build/rust-lang/rust/"
+                } else {
+                    "--verify"
+                }),
+            ]
         },
     };
 
