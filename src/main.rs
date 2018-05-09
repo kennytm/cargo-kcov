@@ -254,18 +254,15 @@ fn get_coveralls_option(matches: &ArgMatches) -> Result<Option<OsString>, Error>
 fn find_target_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
     use serde_json::{from_str, Value};
 
-    let (json, _) = cargo("locate-project")
+    let (json, _) = cargo("metadata")
         .forward(matches, &["--manifest-path"])
+        .args(&["--no-deps", "--format-version", "1"])
         .output()?;
+
     let json = from_str::<Value>(&json)?;
-    match json["root"].as_str() {
+    match json["target_directory"].as_str() {
         None => Err(Error::Json(None)),
-        Some(p) => {
-            let mut root = PathBuf::from(p);
-            root.pop();
-            root.push("target");
-            Ok(root)
-        }
+        Some(p) => Ok(PathBuf::from(p)),
     }
 }
 
