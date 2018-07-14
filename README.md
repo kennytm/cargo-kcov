@@ -7,7 +7,7 @@ cargo-kcov
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 Collect test coverage on all the test cases for the current project using
-[`kcov`](https://simonkagstrom.github.io/kcov/) on Linux.
+[`kcov`](https://simonkagstrom.github.io/kcov/) on Linux and macOS.
 
 Usage
 -----
@@ -23,10 +23,6 @@ from `target/cov/index.html`.
 
 Prerequisite
 ------------
-
-> **Important!** `kcov` only supports covering Rust programs on Linux at the moment. Track
-> [SimonKagstrom/kcov#135](https://github.com/SimonKagstrom/kcov/issues/135) and
-> [#157](https://github.com/SimonKagstrom/kcov/issues/157) for macOS support.
 
 You need to install `kcov` v26 or above to collect coverage report from Rust. Some distro is still
 shipping v25 or v11, so you will need to build from source.
@@ -53,7 +49,7 @@ Options
 -------
 
 ```text
-cargo-kcov 0.5.0
+cargo-kcov 0.5.1
 Generate coverage report via kcov
 
 USAGE:
@@ -89,6 +85,6 @@ OPTIONS:
     -V, --version                  Prints version information
 
 ARGS:
-    <KCOV-ARGS>...    Further arguments passed to kcov. If empty, the default arguments `--verify --exclude
-                      -pattern=$CARGO_HOME` will be passed to kcov.
+    <KCOV-ARGS>...    Further arguments passed to kcov. If empty, the default arguments `--verify --exclude-
+                      pattern=$CARGO_HOME` will be passed to kcov.
 ```
