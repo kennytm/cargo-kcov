@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -euo pipefail
+set -eu
 
 KCOV_DEFAULT_VERSION="v35"
 GITHUB_KCOV="https://api.github.com/repos/SimonKagstrom/kcov/releases/latest"
@@ -17,15 +17,24 @@ rm -rf kcov-${KCOV_VERSION}/
 mkdir kcov-${KCOV_VERSION}
 curl -L --retry 3 "${KCOV_TGZ}" | tar xzvf - -C kcov-${KCOV_VERSION} --strip-components 1
 
+num_proc=1
+if [ "${PARALLEL_BUILD:-}" != "" ]; then
+    if [ "$(uname -s)" = "Darwin" ]; then
+        num_proc=$(sysctl -n hw.ncpu)
+    else
+        num_proc=$(nproc)
+    fi
+fi
+
 cd kcov-${KCOV_VERSION}
 mkdir build
 cd build
 if [ "$(uname)" = Darwin ]; then
     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -GXcode ..
     xcodebuild -configuration Release
-    cp src/Release/kcov src/Release/libkcov_system_lib.so "${CARGO_HOME:-$HOME/.cargo}/bin"
+    cp src/Release/kcov src/Release/libkcov_system_lib.so "${CARGO_HOME:-${HOME}/.cargo}/bin"
 else
     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
-    make
-    cp src/kcov src/libkcov_sowrapper.so "${CARGO_HOME:-$HOME/.cargo}/bin"
+    make -j ${num_proc}
+    cp src/kcov src/libkcov_sowrapper.so "${CARGO_HOME:-${HOME}/.cargo}/bin"
 fi
