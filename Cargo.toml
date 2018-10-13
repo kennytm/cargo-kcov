@@ -1,6 +1,6 @@
 [package]
 name = "cargo-kcov"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["kennytm <kennytm@gmail.com>"]
 description = "Cargo subcommand to run kcov to get coverage report on Linux"
 repository = "https://github.com/kennytm/cargo-kcov"
