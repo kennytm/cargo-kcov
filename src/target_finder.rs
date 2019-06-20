@@ -41,7 +41,12 @@ struct Info {
 /// compilation of a test executable, the path will be extracted. Otherwise, it returns `None`.
 fn parse_rustc_command_line(line: &str) -> Option<PathBuf> {
     let trimmed_line = line.trim_start();
-    if !trimmed_line.starts_with("Running `rustc ") {
+    if !trimmed_line.starts_with(&format!(
+        "Running `{}rustc",
+        std::env::var("RUSTC_WRAPPER")
+            .map(|x| format!("{} ", x))
+            .unwrap_or(String::from(""))
+    )) {
         return None;
     }
 
