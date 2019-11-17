@@ -1,8 +1,8 @@
-use std::process::Command;
 use std::convert::AsRef;
+use std::env::var_os;
 use std::ffi::OsStr;
 use std::fmt;
-use std::env::var_os;
+use std::process::Command;
 
 use clap::ArgMatches;
 
@@ -28,17 +28,16 @@ enum ArgType {
 
 fn parse_arg_type(option: &str) -> Option<ArgType> {
     match option {
-        "--manifest-path" | "--target" | "--jobs" | "--features" | "--coveralls" =>
-            Some(ArgType::Single),
-        "--release" | "--lib" | "--no-default-features" | "--no-fail-fast" | "--all" =>
-            Some(ArgType::Flag),
-        "--bin" | "--example" | "--test" | "--bench" =>
-            Some(ArgType::Multiple),
-        _ =>
-            None,
+        "--manifest-path" | "--target" | "--jobs" | "--features" | "--coveralls" => {
+            Some(ArgType::Single)
+        }
+        "--release" | "--lib" | "--no-default-features" | "--no-fail-fast" | "--all" => {
+            Some(ArgType::Flag)
+        }
+        "--bin" | "--example" | "--test" | "--bench" => Some(ArgType::Multiple),
+        _ => None,
     }
 }
-
 
 impl Cmd {
     pub fn new<S: AsRef<OsStr>>(command: S, subcommand: &'static str) -> Self {
@@ -48,7 +47,7 @@ impl Cmd {
         }
         Cmd {
             cmd: command,
-            subcommand: subcommand,
+            subcommand,
         }
     }
 
@@ -60,18 +59,24 @@ impl Cmd {
     pub fn forward(mut self, matches: &ArgMatches, options: &[&'static str]) -> Self {
         for option in options {
             let opt_name = &option[2..];
-            match parse_arg_type(option).expect(&format!("Cannot forward {}", option)) {
-                ArgType::Flag => if matches.is_present(opt_name) {
-                    self.cmd.arg(option);
-                },
-                ArgType::Single => if let Some(opt) = matches.value_of_os(opt_name) {
-                    self.cmd.arg(option).arg(opt);
-                },
-                ArgType::Multiple => if let Some(opts) = matches.values_of_os(opt_name) {
-                    for opt in opts {
+            match parse_arg_type(option).unwrap_or_else(|| panic!("Cannot forward {}", option)) {
+                ArgType::Flag => {
+                    if matches.is_present(opt_name) {
+                        self.cmd.arg(option);
+                    }
+                }
+                ArgType::Single => {
+                    if let Some(opt) = matches.value_of_os(opt_name) {
                         self.cmd.arg(option).arg(opt);
                     }
-                },
+                }
+                ArgType::Multiple => {
+                    if let Some(opts) = matches.values_of_os(opt_name) {
+                        for opt in opts {
+                            self.cmd.arg(option).arg(opt);
+                        }
+                    }
+                }
             }
         }
         self
@@ -120,4 +125,3 @@ impl Cmd {
 pub fn cargo(subcommand: &'static str) -> Cmd {
     Cmd::new("cargo", subcommand)
 }
-

@@ -17,7 +17,7 @@
 // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#![cfg(not(target_os="windows"))]
+#![cfg(not(target_os = "windows"))]
 
 extern crate rquery;
 
@@ -33,13 +33,30 @@ fn test_specimen() {
         .expect("cargo clean");
 
     Command::new("cargo")
-        .args(&["run", "--", "kcov", "--manifest-path", "specimen/Cargo.toml", "--all"])
+        .args(&[
+            "run",
+            "--",
+            "kcov",
+            "--manifest-path",
+            "specimen/Cargo.toml",
+            "--all",
+        ])
         .status()
         .expect("cargo run kcov");
 
-    let xml = Document::new_from_xml_file("specimen/target/cov/kcov-merged/cobertura.xml").expect("cobertura.xml exists");
-    let elem = xml.select(r#"class[name="lib_rs"]"#).expect("lib_rs element");
-    let coverage = elem.attr("line-rate").unwrap().parse::<f64>().expect("line-rate");
-    assert!(0.1 < coverage && coverage < 1.0, "Wrong coverage count {}", coverage);
+    let xml = Document::new_from_xml_file("specimen/target/cov/kcov-merged/cobertura.xml")
+        .expect("cobertura.xml exists");
+    let elem = xml
+        .select(r#"class[name="lib_rs"]"#)
+        .expect("lib_rs element");
+    let coverage = elem
+        .attr("line-rate")
+        .unwrap()
+        .parse::<f64>()
+        .expect("line-rate");
+    assert!(
+        0.1 < coverage && coverage < 1.0,
+        "Wrong coverage count {}",
+        coverage
+    );
 }
-

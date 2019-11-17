@@ -1,14 +1,14 @@
 use std::io;
 //use std::error;
-use std::fmt::Display;
 use std::convert::From;
+use std::fmt::Display;
 use std::process::{exit, ExitStatus};
-use std::string::FromUtf8Error;
 use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 
-use term::color::{YELLOW, GREEN, RED, WHITE};
-use term::Attr;
 use serde_json;
+use term::color::{GREEN, RED, WHITE, YELLOW};
+use term::Attr;
 
 use stderr;
 
@@ -48,16 +48,16 @@ impl Error {
         }
     }
 
-    fn cause(&self) -> Option<&Display> {
+    fn cause(&self) -> Option<&dyn Display> {
         match *self {
-            Error::KcovNotInstalled(ref e) |
-            Error::CannotRunCargo(ref e) |
-            Error::CannotCreateCoverageDirectory(ref e) |
-            Error::KcovFailed(Err(ref e)) => Some(e),
+            Error::KcovNotInstalled(ref e)
+            | Error::CannotRunCargo(ref e)
+            | Error::CannotCreateCoverageDirectory(ref e)
+            | Error::KcovFailed(Err(ref e)) => Some(e),
             Error::Utf8(ref e) => Some(e),
-            Error::Json(ref e) => e.as_ref().map(|a| a as &Display),
+            Error::Json(ref e) => e.as_ref().map(|a| a as &dyn Display),
             Error::KcovFailed(Ok(ref e)) => Some(e),
-            Error::CannotFindTestTargets(ref e) => e.as_ref().map(|a| a as &Display),
+            Error::CannotFindTestTargets(ref e) => e.as_ref().map(|a| a as &dyn Display),
             _ => None,
         }
     }
@@ -75,7 +75,6 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-
 impl Error {
     /// Prints the error message and quit.
     pub fn print_error_and_quit(&self) -> ! {
@@ -87,7 +86,12 @@ impl Error {
         t.reset().unwrap();
         writeln!(t, "{}", self.description()).unwrap();
 
-        if let Error::Cargo { subcommand, ref status, ref stderr } = *self {
+        if let Error::Cargo {
+            subcommand,
+            ref status,
+            ref stderr,
+        } = *self
+        {
             t.fg(YELLOW).unwrap();
             t.attr(Attr::Bold).unwrap();
             t.write_all(b"note: ").unwrap();
@@ -116,7 +120,8 @@ impl Error {
                 t.reset().unwrap();
                 t.write_all(b" to install kcov:\n\n").unwrap();
 
-                #[cfg(target_os = "linux")] {
+                #[cfg(target_os = "linux")]
+                {
                     t.fg(WHITE).unwrap();
                     t.write_all(b"    $ ").unwrap();
                     t.reset().unwrap();
@@ -127,7 +132,8 @@ impl Error {
                     t.reset().unwrap();
                     writeln!(t, "sudo apt-get install libcurl4-openssl-dev libelf-dev libdw-dev binutils-dev libiberty-dev\n").unwrap();
                 }
-                #[cfg(target_os = "macos")] {
+                #[cfg(target_os = "macos")]
+                {
                     t.fg(WHITE).unwrap();
                     t.write_all(b"    $ ").unwrap();
                     t.reset().unwrap();
@@ -148,11 +154,15 @@ impl Error {
                 t.fg(WHITE).unwrap();
                 t.write_all(b"    $ ").unwrap();
                 t.reset().unwrap();
-                writeln!(t, "cargo clean &&
+                writeln!(
+                    t,
+                    "cargo clean &&
         RUSTFLAGS=\"-C link-dead-code\" cargo test --no-run &&
         cargo kcov --no-clean-rebuild
 
-                ").unwrap();
+                "
+                )
+                .unwrap();
             }
             _ => {}
         }
@@ -160,4 +170,3 @@ impl Error {
         exit(2);
     }
 }
-

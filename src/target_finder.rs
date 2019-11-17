@@ -1,12 +1,12 @@
-use std::path::{PathBuf, Path};
-use std::default::Default;
-use std::fs::Metadata;
 use std::borrow::Cow;
 use std::convert::AsRef;
+use std::default::Default;
+use std::fs::Metadata;
 use std::iter::IntoIterator;
+use std::path::{Path, PathBuf};
 
+use regex::{escape, RegexSet};
 use shlex::Shlex;
-use regex::{RegexSet, escape};
 
 use errors::Error;
 
@@ -40,7 +40,7 @@ struct Info {
 /// Parses a single line of `cargo test --no-run --verbose` output. If the line indicates the
 /// compilation of a test executable, the path will be extracted. Otherwise, it returns `None`.
 fn parse_rustc_command_line(line: &str) -> Option<PathBuf> {
-    let trimmed_line = line.trim_left();
+    let trimmed_line = line.trim_start();
     if !trimmed_line.starts_with("Running `rustc ") {
         return None;
     }
@@ -71,7 +71,10 @@ fn parse_rustc_command_line(line: &str) -> Option<PathBuf> {
             NextState::Normal => {
                 next_state = match &*word {
                     "--crate-name" => NextState::CrateName,
-                    "--test" => { info.is_test_confirmed = true; NextState::Normal },
+                    "--test" => {
+                        info.is_test_confirmed = true;
+                        NextState::Normal
+                    }
                     "-C" => NextState::C,
                     "--out-dir" => NextState::OutDir,
                     _ => NextState::Normal,
@@ -147,17 +150,19 @@ fn test_parse_rustc_command_lines() {
 ///
 /// If the `filter` set is empty, all test executables will be gathered.
 pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<PathBuf>, Error>
-    where I: IntoIterator<Item=E>, I::IntoIter: ExactSizeIterator, E: AsRef<str>
+where
+    I: IntoIterator<Item = E>,
+    I::IntoIter: ExactSizeIterator,
+    E: AsRef<str>,
 {
     let filter = filter.into_iter();
     let test_target_regex = if filter.len() == 0 {
         RegexSet::new(&["^[^-]+-[0-9a-f]{16}$"])
     } else {
         RegexSet::new(filter.map(|f| format!("^{}-[0-9a-f]{{16}}$", escape(f.as_ref()))))
-    }.unwrap();
+    }
+    .unwrap();
 
-    // lint suppressed: https://github.com/Manishearth/rust-clippy/issues/1684
-    #[cfg_attr(feature = "cargo-clippy", allow(redundant_closure_call))]
     let result = (|| {
         let mut result = Vec::new();
 
@@ -182,11 +187,13 @@ pub fn find_test_targets<I, E>(target_folder: &Path, filter: I) -> Result<Vec<Pa
     })();
 
     match result {
-        Ok(r) => if r.is_empty() {
-            Err(Error::CannotFindTestTargets(None))
-        } else {
-            Ok(r)
-        },
+        Ok(r) => {
+            if r.is_empty() {
+                Err(Error::CannotFindTestTargets(None))
+            } else {
+                Ok(r)
+            }
+        }
         Err(e) => Err(Error::CannotFindTestTargets(Some(e))),
     }
 }
@@ -200,12 +207,13 @@ fn can_execute(_: &Path, metadata: &Metadata) -> bool {
 
 #[cfg(windows)]
 fn can_execute(path: &Path, _: &Metadata) -> bool {
-    path.extension() == Some("exe")
+    path.extension() == Some(std::ffi::OsStr::new("exe"))
 }
 
 #[test]
+#[cfg(unix)]
 fn test_find_test_targets() {
-    use std::fs::{create_dir, File, Permissions, set_permissions};
+    use std::fs::{create_dir, set_permissions, File, Permissions};
     use std::os::unix::fs::PermissionsExt;
     use tempdir::TempDir;
 
@@ -257,7 +265,6 @@ fn test_find_test_targets() {
         }
     }
 
-
     //test_unfiltered:
     {
         let mut actual_paths = find_test_targets(root_path, &[] as &[&'static str]).unwrap();
@@ -294,7 +301,7 @@ fn test_find_test_targets() {
     {
         let result = find_test_targets(root_path, &["asdaksdhaskdkasdk"]);
         match result {
-            Err(Error::CannotFindTestTargets(None)) => {},
+            Err(Error::CannotFindTestTargets(None)) => {}
             _ => assert!(false),
         }
     }
@@ -305,14 +312,14 @@ fn test_find_test_targets() {
 pub fn find_package_name_from_pkgid(pkgid: &str) -> Cow<str> {
     // whoever think of this pkgid syntax... wtf???
     let path = match pkgid.rfind('/') {
-        Some(i) => &pkgid[i+1 ..],
-        None => pkgid
+        Some(i) => &pkgid[i + 1..],
+        None => pkgid,
     };
     let pkg_name = match (path.rfind(':'), path.find('#')) {
         (None, None) => path,
-        (Some(i), None) => &path[.. i],
-        (None, Some(j)) => &path[.. j],
-        (Some(i), Some(j)) => &path[j+1 .. i],
+        (Some(i), None) => &path[..i],
+        (None, Some(j)) => &path[..j],
+        (Some(i), Some(j)) => &path[j + 1..i],
     };
     normalize_package_name(pkg_name)
 }
@@ -331,9 +338,20 @@ fn test_find_package_name_from_pkgid() {
     assert_eq!(find_package_name_from_pkgid("foo:1.2.3"), "foo");
     assert_eq!(find_package_name_from_pkgid("crates.io/foo"), "foo");
     assert_eq!(find_package_name_from_pkgid("crates.io/foo#1.2.3"), "foo");
-    assert_eq!(find_package_name_from_pkgid("crates.io/bar#foo:1.2.3"), "foo");
-    assert_eq!(find_package_name_from_pkgid("http://crates.io/foo#1.2.3"), "foo");
-    assert_eq!(find_package_name_from_pkgid("file:///path/to/cargo-kcov#0.2.0"), "cargo_kcov");
-    assert_eq!(find_package_name_from_pkgid("file:///path/to/cargo-kcov/specimen#cargo-kcov-test:0.0.1"), "cargo_kcov_test");
+    assert_eq!(
+        find_package_name_from_pkgid("crates.io/bar#foo:1.2.3"),
+        "foo"
+    );
+    assert_eq!(
+        find_package_name_from_pkgid("http://crates.io/foo#1.2.3"),
+        "foo"
+    );
+    assert_eq!(
+        find_package_name_from_pkgid("file:///path/to/cargo-kcov#0.2.0"),
+        "cargo_kcov"
+    );
+    assert_eq!(
+        find_package_name_from_pkgid("file:///path/to/cargo-kcov/specimen#cargo-kcov-test:0.0.1"),
+        "cargo_kcov_test"
+    );
 }
-
