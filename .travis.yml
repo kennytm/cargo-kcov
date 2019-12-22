@@ -18,7 +18,7 @@ addons:
 matrix:
     include:
         - os: linux
-          rust: 1.31.1
+          rust: 1.40.0
           env: ARCH=x86_64
 
         - os: linux
@@ -34,6 +34,7 @@ matrix:
           env: ARCH=x86_64
 
         - os: osx
+          osx_image: xcode11.3
           rust: stable
           env: ARCH=x86_64
 
@@ -47,6 +48,9 @@ install:
     - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/Library/Python/2.7/bin:$PATH
     - export RUSTFLAGS="-C link-dead-code"
     - kcov --version
+
+    # See https://github.com/rust-lang/rust/issues/38380
+    - if [ $TRAVIS_OS_NAME = osx ]; then brew unlink python2 && brew unlink python3; fi
 
 script:
     - cargo build
