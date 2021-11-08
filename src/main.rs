@@ -19,6 +19,7 @@
 
 #[macro_use]
 extern crate clap;
+extern crate lazy_static;
 extern crate open;
 extern crate regex;
 extern crate serde_json;
