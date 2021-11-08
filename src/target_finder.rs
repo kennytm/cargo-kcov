@@ -5,6 +5,7 @@ use std::fs::Metadata;
 use std::iter::IntoIterator;
 use std::path::{Path, PathBuf};
 
+use lazy_static::lazy_static;
 use regex::{escape, RegexSet};
 use shlex::Shlex;
 
@@ -40,8 +41,18 @@ struct Info {
 /// Parses a single line of `cargo test --no-run --verbose` output. If the line indicates the
 /// compilation of a test executable, the path will be extracted. Otherwise, it returns `None`.
 fn parse_rustc_command_line(line: &str) -> Option<PathBuf> {
+    lazy_static! {
+        static ref RUNNING_RUSTC_PREFIX: String = {
+            format!(
+                "Running `{}rustc",
+                std::env::var("RUSTC_WRAPPER")
+                    .map(|x| format!("{} ", x))
+                    .unwrap_or_default()
+            )
+        };
+    }
     let trimmed_line = line.trim_start();
-    if !trimmed_line.starts_with("Running `rustc ") {
+    if !trimmed_line.starts_with(&*RUNNING_RUSTC_PREFIX) {
         return None;
     }
 
